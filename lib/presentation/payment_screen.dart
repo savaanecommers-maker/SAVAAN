@@ -49,14 +49,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
   static const Color _surface = Color(0xFFF8FAFC);
   static const Color _upiGreen = Color(0xFF097939);
 
-  // ── Order placement ───────────────────────────────────────────
-  Future<void> _placeOrder() async {
+  // ── COD: place immediately ────────────────────────────────────
+  Future<void> _placeCodOrder() async {
     setState(() => _isPlacing = true);
     try {
       final (order, error) = await context.read<OrderProvider>().placeOrder(
         cartItems:     widget.cartItems,
         addressId:     widget.selectedAddressId,
-        paymentMethod: _selected,
+        paymentMethod: PaymentMethod.cod,
         subtotal:      widget.subtotal,
         discount:      widget.discount,
         shipping:      widget.shipping,
@@ -82,6 +82,210 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _showSnackBar('Failed to place order. Please try again.', Colors.redAccent);
       }
     }
+  }
+
+  // ── UPI: show UTR dialog, then place ─────────────────────────
+  Future<void> _confirmUpiPayment() async {
+    final utr = await _showUtrDialog();
+    if (utr == null) return; // user cancelled
+    setState(() => _isPlacing = true);
+    try {
+      final (order, error) = await context.read<OrderProvider>().placeOrder(
+        cartItems:        widget.cartItems,
+        addressId:        widget.selectedAddressId,
+        paymentMethod:    PaymentMethod.upi,
+        subtotal:         widget.subtotal,
+        discount:         widget.discount,
+        shipping:         widget.shipping,
+        total:            widget.total,
+        couponCode:       widget.couponCode,
+        paymentReference: utr,
+      );
+      if (error != null) throw Exception(error);
+      context.read<CartProvider>().clear();
+      if (mounted && order != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => OrderSuccessScreen(
+            orderNumber:        order.orderNumber,
+            orderDate:          order.formattedDate,
+            total:              widget.total,
+            awaitingVerification: true,
+          )),
+          (route) => route.isFirst,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPlacing = false);
+        _showSnackBar('Failed to place order. Please try again.', Colors.redAccent);
+      }
+    }
+  }
+
+  // ── UTR input dialog ──────────────────────────────────────────
+  Future<String?> _showUtrDialog() async {
+    final ctrl   = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          child: Form(
+            key: formKey,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: _border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              // Icon + title
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _upiGreen.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.receipt_long_outlined,
+                    size: 28, color: _upiGreen),
+              ),
+              const SizedBox(height: 14),
+              const Text('Enter UPI Transaction ID',
+                  style: TextStyle(fontSize: 17,
+                      fontWeight: FontWeight.bold, color: _ink)),
+              const SizedBox(height: 6),
+              Text(
+                'Open your UPI app → Recent transactions\n'
+                '→ Copy the 12-digit Transaction / UTR ID',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: _slate, height: 1.5),
+              ),
+              const SizedBox(height: 20),
+
+              // UTR field
+              TextFormField(
+                controller: ctrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.characters,
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w600,
+                    color: _ink, letterSpacing: 1.5),
+                decoration: InputDecoration(
+                  hintText: 'e.g. 123456789012',
+                  hintStyle: TextStyle(color: _slate,
+                      fontWeight: FontWeight.normal, letterSpacing: 0),
+                  prefixIcon: Icon(Icons.tag, color: _upiGreen),
+                  filled: true,
+                  fillColor: _surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: _border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: _border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: _upiGreen, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 14),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Please enter the transaction ID from your UPI app';
+                  }
+                  if (v.trim().length < 10) {
+                    return 'Transaction ID must be at least 10 characters';
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 8),
+
+              // Where to find it hint
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                ),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.lightbulb_outline,
+                      size: 14, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'GPay: Tap the transaction → "Transaction ID"\n'
+                      'PhonePe: History → transaction → "UPI Ref No"\n'
+                      'Paytm: Passbook → transaction details',
+                      style: TextStyle(
+                          fontSize: 11, color: _slate, height: 1.5),
+                    ),
+                  ),
+                ]),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Confirm button
+              StatefulBuilder(builder: (ctx2, setSt) => GestureDetector(
+                onTap: () {
+                  if (formKey.currentState!.validate()) {
+                    Navigator.pop(ctx, ctrl.text.trim().toUpperCase());
+                  }
+                },
+                child: Container(
+                  width: double.infinity, height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [_teal, _green]),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [BoxShadow(
+                      color: _teal.withValues(alpha: 0.3),
+                      blurRadius: 12, offset: const Offset(0, 4),
+                    )],
+                  ),
+                  child: const Center(
+                    child: Text('Confirm Order',
+                        style: TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15, letterSpacing: 0.5)),
+                  ),
+                ),
+              )),
+
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () => Navigator.pop(ctx, null),
+                child: Center(
+                  child: Text('Cancel',
+                      style: TextStyle(fontSize: 13, color: _slate)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 
   // ── UPI deep link ─────────────────────────────────────────────
@@ -392,7 +596,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         // ── I've Paid button (always visible — user may have scanned QR) ──
         const SizedBox(height: 14),
         GestureDetector(
-          onTap: _isPlacing ? null : _placeOrder,
+          onTap: _isPlacing ? null : _confirmUpiPayment,
           child: Container(
             height: 46,
             decoration: BoxDecoration(
@@ -649,7 +853,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
       child: Column(children: [
         GestureDetector(
-          onTap: _isPlacing ? null : _placeOrder,
+          onTap: _isPlacing ? null : _placeCodOrder,
           child: Container(
             height: 52,
             decoration: BoxDecoration(
