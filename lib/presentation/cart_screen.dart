@@ -200,7 +200,7 @@ class _CartScreenState extends State<CartScreen> {
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                Text(_fmt((item.product?.price ?? 0) * item.quantity),
+                Text(_fmt(item.totalPrice),
                     style: const TextStyle(fontSize: 14,
                         fontWeight: FontWeight.bold, color: _ink)),
                 Container(

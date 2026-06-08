@@ -6,6 +6,8 @@ class OrderItemModel {
   final String? productImage;
   final double price;
   final int quantity;
+  final String? variantColor;
+  final String? variantSize;
   final DateTime? createdAt;
 
   OrderItemModel({
@@ -16,6 +18,8 @@ class OrderItemModel {
     this.productImage,
     required this.price,
     required this.quantity,
+    this.variantColor,
+    this.variantSize,
     this.createdAt,
   });
 
@@ -28,10 +32,21 @@ class OrderItemModel {
       productImage: json['product_image']?.toString() ?? json['image_url']?.toString(),
       price:        double.tryParse(json['price']?.toString() ?? '0') ?? 0,
       quantity:     int.tryParse(json['quantity']?.toString() ?? '1') ?? 1,
+      variantColor: json['variant_color']?.toString(),
+      variantSize:  json['variant_size']?.toString(),
       createdAt:    json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString())
           : null,
     );
+  }
+
+  /// Compact variant label e.g. "Size: M" or "Black / M" or null
+  String? get variantLabel {
+    final parts = <String>[
+      if (variantColor != null) variantColor!,
+      if (variantSize  != null) 'Size: ${variantSize!}',
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   Map<String, dynamic> toJson() => {

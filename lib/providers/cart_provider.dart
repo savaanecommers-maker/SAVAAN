@@ -28,8 +28,7 @@ class CartProvider extends ChangeNotifier {
       _items.fold(0, (sum, i) => sum + i.quantity);
 
   double get subtotal =>
-      _items.fold(0.0, (sum, i) =>
-          sum + (i.product?.price ?? 0) * i.quantity);
+      _items.fold(0.0, (sum, i) => sum + i.totalPrice);
 
   // Shipping — set by admin via app_settings, defaults to ₹99 / free above ₹999
   double _shippingCharge    = 99.0;

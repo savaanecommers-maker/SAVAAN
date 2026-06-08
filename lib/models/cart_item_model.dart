@@ -45,6 +45,17 @@ class CartItemModel {
     if (json['product_variants'] != null && json['product_variants'] is Map) {
       vari = ProductVariant.fromJson(
           json['product_variants'] as Map<String, dynamic>);
+    } else if (json['variant_id'] != null &&
+               (json['variant_color'] != null || json['variant_size'] != null)) {
+      // Flat JOIN row from backend: variant fields at top level
+      vari = ProductVariant.fromJson({
+        'id':            json['variant_id'],
+        'product_id':    json['product_id'],
+        'color':         json['variant_color'],
+        'size':          json['variant_size'],
+        'stock':         json['variant_stock'] ?? json['stock'] ?? 0,
+        'price':         json['variant_price'],
+      });
     }
 
     return CartItemModel(
@@ -68,7 +79,9 @@ class CartItemModel {
     'quantity':   quantity,
   };
 
-  double get totalPrice => (product?.price ?? 0) * quantity;
+  // Use variant price override if set, otherwise fall back to product price
+  double get unitPrice => variant?.priceOverride ?? product?.price ?? 0;
+  double get totalPrice => unitPrice * quantity;
 
   String get displayName => product?.name ?? '';
 

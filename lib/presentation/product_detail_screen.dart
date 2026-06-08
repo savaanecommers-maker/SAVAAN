@@ -29,6 +29,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _isLoading = true;
   int _selectedImageIndex = 0;
   ProductVariant? _selectedVariant;
+  String? _selectedColor;  // selected color (step 1 when product has both)
+  String? _selectedSize;   // selected size  (step 2 when product has both)
+  bool _variantRequired = false; // turns true when user tries to add-to-cart without selecting
   int _quantity = 1;
   bool _addingToCart = false;
   List<Map<String, dynamic>> _reviews = [];
@@ -101,9 +104,71 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   void _preselectVariant() {
-    if (_product != null && _product!.variants.isNotEmpty) {
-      _selectedVariant = _product!.variants.first;
+    if (_product == null || _product!.variants.isEmpty) return;
+    final variants = _product!.variants;
+
+    final hasColors = variants.any((v) => v.color != null);
+    final hasSizes  = variants.any((v) => v.size  != null);
+
+    if (!hasColors && hasSizes) {
+      // Size-only product: pre-select first in-stock size, or first size
+      final first = variants.firstWhere((v) => v.isInStock, orElse: () => variants.first);
+      setState(() {
+        _selectedSize    = first.size;
+        _selectedVariant = first;
+      });
+    } else if (hasColors && !hasSizes) {
+      // Color-only product: pre-select first in-stock color
+      final first = variants.firstWhere((v) => v.isInStock, orElse: () => variants.first);
+      setState(() {
+        _selectedColor   = first.color;
+        _selectedVariant = first;
+      });
     }
+    // Color+size: don't pre-select — user must choose both
+  }
+
+  /// Called whenever color or size chip is tapped. Finds matching variant.
+  void _onColorSelected(String color) {
+    final variants = _product!.variants;
+    setState(() {
+      _selectedColor   = color;
+      _selectedVariant = null; // reset until size is also chosen
+      // If no sizes exist, resolve variant immediately
+      final hasSizes = variants.any((v) => v.size != null);
+      if (!hasSizes) {
+        _selectedVariant = variants.firstWhere(
+          (v) => v.color == color,
+          orElse: () => variants.first,
+        );
+      } else if (_selectedSize != null) {
+        // Try to keep same size in new color
+        final match = variants.where(
+          (v) => v.color == color && v.size == _selectedSize,
+        );
+        if (match.isNotEmpty) _selectedVariant = match.first;
+        // else leave null so user knows to pick size again
+      }
+    });
+  }
+
+  void _onSizeSelected(String size) {
+    final variants = _product!.variants;
+    setState(() {
+      _selectedSize = size;
+      final hasColors = variants.any((v) => v.color != null);
+      if (!hasColors) {
+        _selectedVariant = variants.firstWhere(
+          (v) => v.size == size,
+          orElse: () => variants.first,
+        );
+      } else if (_selectedColor != null) {
+        final match = variants.where(
+          (v) => v.color == _selectedColor && v.size == size,
+        );
+        _selectedVariant = match.isNotEmpty ? match.first : null;
+      }
+    });
   }
 
   Future<void> _toggleWishlist() async {
@@ -115,6 +180,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Future<void> _addToCart() async {
     if (_addingToCart) return;
+
+    // Enforce variant selection for variant products
+    if (_product!.hasVariants && _selectedVariant == null) {
+      setState(() => _variantRequired = true);
+      _showSnackBar('Please select a size first', Colors.orange);
+      return;
+    }
+
     setState(() => _addingToCart = true);
     try {
       final error = await context.read<CartProvider>().addToCart(
@@ -123,6 +196,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         quantity:  _quantity,
       );
       if (mounted) {
+        setState(() => _variantRequired = false);
         _showSnackBar(error == null ? 'Added to cart!' : 'Failed to add to cart',
             error == null ? _teal : Colors.redAccent);
       }
@@ -140,7 +214,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final userId = await ApiClient.getTokenPayload().then((p) => p?['id'] as String? ?? '');
     // Build a single-item cart for checkout
     final cartItem = CartItemModel(
-      id:        'buynow_${widget.productId}',
+      id:        'buynow_${widget.productId}_${_selectedVariant?.id ?? ""}',
       userId:    userId,
       productId: widget.productId,
       variantId: _selectedVariant?.id,
@@ -150,7 +224,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
     // Use CartProvider shipping settings so admin-configurable free-shipping threshold is respected
     final cart        = context.read<CartProvider>();
-    final subtotal    = p.effectivePrice * _quantity;
+    // Use variant price override if set, else product effective price
+    final unitPrice   = _selectedVariant?.priceOverride ?? p.effectivePrice;
+    final subtotal    = unitPrice * _quantity;
     final shippingAmt = subtotal >= cart.freeShippingAbove ? 0.0 : cart.shippingCharge;
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => CheckoutScreen(
@@ -320,96 +396,308 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ]),
         const SizedBox(height: 6),
 
-        // Stock status
-        Row(children: [
-          Container(
-            width: 8, height: 8,
-            decoration: BoxDecoration(
-              color: p.isInStock ? _green : Colors.redAccent,
-              shape: BoxShape.circle,
+        // Stock status — for variant products show "Select size for availability"
+        if (!p.hasVariants) ...[
+          Row(children: [
+            Container(
+              width: 8, height: 8,
+              decoration: BoxDecoration(
+                color: p.isInStock ? _green : Colors.redAccent,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            p.isLowStock
-                ? 'Only ${p.stock} left!'
-                : p.isInStock ? 'In Stock' : 'Out of Stock',
-            style: TextStyle(
-              fontSize: 13,
-              color: p.isLowStock
-                  ? Colors.orange
-                  : p.isInStock ? _green : Colors.redAccent,
-              fontWeight: FontWeight.w500,
+            const SizedBox(width: 6),
+            Text(
+              p.isLowStock
+                  ? 'Only ${p.stock} left!'
+                  : p.isInStock ? 'In Stock' : 'Out of Stock',
+              style: TextStyle(
+                fontSize: 13,
+                color: p.isLowStock
+                    ? Colors.orange
+                    : p.isInStock ? _green : Colors.redAccent,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ]),
+          ]),
+        ] else ...[
+          Text('${p.variants.where((v) => v.isInStock).length} sizes available',
+              style: TextStyle(fontSize: 13, color: _teal,
+                  fontWeight: FontWeight.w500)),
+        ],
       ]),
     );
   }
 
-  // ── Variant selector (colors) ────────────────────────────────
+  // ── Variant selector (sizes + colors) ───────────────────────
   Widget _buildVariantSelector(ProductModel p) {
+    if (!p.hasVariants && p.variants.isEmpty) return const SizedBox.shrink();
     if (p.variants.isEmpty) return const SizedBox.shrink();
-    final colors = p.variants
+
+    final allColors = p.variants
         .where((v) => v.color != null)
         .map((v) => v.color!)
         .toSet()
         .toList();
-    if (colors.isEmpty) return const SizedBox.shrink();
+    final allSizes = p.variants
+        .where((v) => v.size != null)
+        .map((v) => v.size!)
+        .toList()
+      ..unique(); // preserve insertion order
+
+    final hasColors = allColors.isNotEmpty;
+    final hasSizes  = allSizes.isNotEmpty;
+
+    // Sizes available in the selected color (or all sizes if no color filter)
+    final availableSizes = hasColors && _selectedColor != null
+        ? p.variants
+            .where((v) => v.color == _selectedColor && v.size != null)
+            .map((v) => v.size!)
+            .toList()
+        : allSizes;
+
+    // Price / stock to show from selected variant
+    final effectivePrice = _selectedVariant?.priceOverride ?? p.price;
+    final variantStock   = _selectedVariant?.stock;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Text('Color',
-              style: TextStyle(fontSize: 14,
-                  fontWeight: FontWeight.w600, color: _ink)),
-          const SizedBox(width: 8),
-          Text(_selectedVariant?.color ?? '',
-              style: TextStyle(fontSize: 13, color: _slate)),
-        ]),
-        const SizedBox(height: 10),
-        Row(children: colors.map((color) {
-          final variant = p.variants.firstWhere(
-                  (v) => v.color == color, orElse: () => p.variants.first);
-          final isSelected = _selectedVariant?.color == color;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedVariant = variant),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 38, height: 38,
-              margin: const EdgeInsets.only(right: 10),
+
+        // ── Price: update if variant has price override ───────
+        if (_selectedVariant?.priceOverride != null) ...[
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Text(_fmtPrice(effectivePrice),
+                style: const TextStyle(fontSize: 22,
+                    fontWeight: FontWeight.bold, color: _ink)),
+            if (p.price != effectivePrice) ...[
+              const SizedBox(width: 8),
+              Text(_fmtPrice(p.price),
+                  style: TextStyle(fontSize: 14, color: _slate,
+                      decoration: TextDecoration.lineThrough)),
+            ],
+          ]),
+          const SizedBox(height: 14),
+        ],
+
+        // ── Variant stock status ──────────────────────────────
+        if (variantStock != null) ...[
+          Row(children: [
+            Container(
+              width: 7, height: 7,
               decoration: BoxDecoration(
-                color: _colorFromName(color),
+                color: variantStock > 0 ? _green : Colors.redAccent,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? _teal : Colors.transparent,
-                  width: 2.5,
-                ),
-                boxShadow: isSelected ? [BoxShadow(
-                    color: _teal.withValues(alpha: 0.3), blurRadius: 8)] : null,
               ),
-              child: isSelected
-                  ? const Icon(Icons.check, color: Colors.white, size: 18)
-                  : null,
             ),
-          );
-        }).toList()),
+            const SizedBox(width: 6),
+            Text(
+              variantStock == 0
+                  ? 'Out of stock in this size'
+                  : variantStock <= 5
+                      ? 'Only $variantStock left!'
+                      : 'In stock',
+              style: TextStyle(
+                fontSize: 12,
+                color: variantStock == 0
+                    ? Colors.redAccent
+                    : variantStock <= 5 ? Colors.orange : _green,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+        ],
+
+        // ── Color selector ────────────────────────────────────
+        if (hasColors) ...[
+          Row(children: [
+            const Text('Color',
+                style: TextStyle(fontSize: 14,
+                    fontWeight: FontWeight.w600, color: _ink)),
+            const SizedBox(width: 8),
+            Text(_selectedColor ?? 'Select a color',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: _selectedColor != null ? _slate : Colors.orange,
+                    fontWeight: _selectedColor == null ? FontWeight.w600 : FontWeight.normal)),
+          ]),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10, runSpacing: 10,
+            children: allColors.map((color) {
+              final isSelected = _selectedColor == color;
+              // Check if any variant of this color is in stock
+              final hasStock = p.variants.any((v) => v.color == color && v.stock > 0);
+              return GestureDetector(
+                onTap: () => _onColorSelected(color),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: _colorFromName(color),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected ? _teal : Colors.transparent,
+                      width: 2.5,
+                    ),
+                    boxShadow: isSelected ? [BoxShadow(
+                        color: _teal.withValues(alpha: 0.3), blurRadius: 8)] : null,
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (isSelected)
+                        const Icon(Icons.check, color: Colors.white, size: 18),
+                      if (!hasStock)
+                        // Diagonal line = out of stock in all sizes of this color
+                        CustomPaint(painter: _StrikethroughPainter()),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Size selector ─────────────────────────────────────
+        if (hasSizes) ...[
+          Row(children: [
+            Text(availableSizes.isNotEmpty ? 'Size' : 'Size',
+                style: const TextStyle(fontSize: 14,
+                    fontWeight: FontWeight.w600, color: _ink)),
+            const SizedBox(width: 8),
+            Text(
+              _selectedSize ?? (hasColors && _selectedColor == null
+                  ? 'Choose color first'
+                  : 'Select a size'),
+              style: TextStyle(
+                fontSize: 13,
+                color: _selectedSize != null ? _slate
+                    : (_variantRequired ? Colors.redAccent : Colors.orange),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ]),
+          if (_variantRequired && _selectedVariant == null) ...[
+            const SizedBox(height: 4),
+            Text('⚠ Please select a size to continue',
+                style: const TextStyle(
+                    fontSize: 12, color: Colors.redAccent,
+                    fontWeight: FontWeight.w500)),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8, runSpacing: 8,
+            children: allSizes.map((size) {
+              // Find matching variant for this size (and selected color if applicable)
+              final matchingVariant = hasColors && _selectedColor != null
+                  ? p.variants.where(
+                      (v) => v.color == _selectedColor && v.size == size
+                    ).firstOrNull
+                  : p.variants.where((v) => v.size == size).firstOrNull;
+
+              final isSelected = _selectedSize == size && _selectedVariant != null;
+              final isAvailable = availableSizes.contains(size);
+              final hasStock = matchingVariant?.stock != null
+                  ? matchingVariant!.stock > 0
+                  : true; // if no match yet, don't gray it out
+
+              return GestureDetector(
+                onTap: isAvailable ? () => _onSizeSelected(size) : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? _teal
+                        : !isAvailable || !hasStock
+                            ? _surface
+                            : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected
+                          ? _teal
+                          : _variantRequired && !isSelected
+                              ? Colors.redAccent.withValues(alpha: 0.4)
+                              : _border,
+                      width: isSelected ? 2 : 1.5,
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      Text(size,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white
+                                : !isAvailable || !hasStock
+                                    ? _border
+                                    : _ink,
+                          )),
+                      // Strike-through for out-of-stock
+                      if (!hasStock && isAvailable)
+                        Positioned.fill(
+                          child: CustomPaint(painter: _SizeStrikethroughPainter()),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ]),
     );
   }
 
+  String _fmtPrice(double amount) {
+    final str = amount.toStringAsFixed(0);
+    final result = StringBuffer('₹');
+    int count = 0;
+    for (int i = str.length - 1; i >= 0; i--) {
+      if (count == 3 || (count > 3 && (count - 3) % 2 == 0)) result.write(',');
+      result.write(str[i]);
+      count++;
+    }
+    return result.toString().split('').reversed.join();
+  }
+
   Color _colorFromName(String name) {
     switch (name.toLowerCase()) {
-      case 'green':  return const Color(0xFF0D9488);
-      case 'black':  return const Color(0xFF1E293B);
-      case 'silver': return const Color(0xFF94A3B8);
-      case 'gold':   return const Color(0xFFD4AF37);
-      case 'white':  return const Color(0xFFF1F5F9);
-      case 'red':    return const Color(0xFFEF4444);
-      case 'blue':   return const Color(0xFF3B82F6);
-      case 'brown':  return const Color(0xFF92400E);
-      default:       return const Color(0xFF64748B);
+      case 'green':    return const Color(0xFF16A34A);
+      case 'black':    return const Color(0xFF1E293B);
+      case 'silver':   return const Color(0xFF94A3B8);
+      case 'grey':
+      case 'gray':     return const Color(0xFF6B7280);
+      case 'gold':     return const Color(0xFFD4AF37);
+      case 'white':    return const Color(0xFFE2E8F0);
+      case 'red':      return const Color(0xFFEF4444);
+      case 'blue':     return const Color(0xFF3B82F6);
+      case 'navy':
+      case 'navy blue':return const Color(0xFF1E3A5F);
+      case 'brown':    return const Color(0xFF92400E);
+      case 'pink':     return const Color(0xFFF472B6);
+      case 'purple':   return const Color(0xFF7C3AED);
+      case 'yellow':   return const Color(0xFFFBBF24);
+      case 'orange':   return const Color(0xFFF97316);
+      case 'maroon':   return const Color(0xFF7F1D1D);
+      case 'teal':     return const Color(0xFF0D9488);
+      case 'cream':
+      case 'beige':    return const Color(0xFFF5F0E8);
+      default:
+        // Try parsing as hex color code
+        try {
+          final hex = name.replaceAll('#', '').trim();
+          if (hex.length == 6) {
+            return Color(int.parse('FF$hex', radix: 16));
+          }
+        } catch (_) {}
+        return const Color(0xFF64748B);
     }
   }
 
@@ -440,7 +728,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             ),
             _qtyButton(Icons.add, () {
-              final stock = _product?.stock ?? 999;
+              // Use variant stock if a variant is selected, else product stock
+              final stock = _selectedVariant?.stock ?? _product?.stock ?? 999;
               if (_quantity < stock) setState(() => _quantity++);
             }),
           ]),
@@ -659,6 +948,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   // ── Bottom bar (Add to Cart + Buy Now) ───────────────────────
   Widget _buildBottomBar() {
     final p = _product!;
+    // For variant products, only show "in stock" when a specific variant is selected
+    final variantSelected = !p.hasVariants || _selectedVariant != null;
+    final variantInStock  = _selectedVariant?.isInStock ?? true;
+    final canAdd = p.isInStock && variantInStock && (p.hasVariants ? variantSelected : true);
+
     return Positioned(
       bottom: 0, left: 0, right: 0,
       child: Container(
@@ -670,62 +964,87 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             blurRadius: 16, offset: const Offset(0, -4),
           )],
         ),
-        child: Row(children: [
-          // Add to Cart
-          Expanded(
-            child: GestureDetector(
-              onTap: p.isInStock ? _addToCart : null,
-              child: Container(
-                height: 50,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Prompt when variant not yet selected
+            if (p.hasVariants && !variantSelected) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
-                  gradient: p.isInStock
-                      ? const LinearGradient(colors: [_teal, _green])
-                      : null,
-                  color: p.isInStock ? null : _border,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: p.isInStock ? [BoxShadow(
-                    color: _teal.withValues(alpha: 0.3),
-                    blurRadius: 12, offset: const Offset(0, 4),
-                  )] : null,
+                  color: Colors.amber.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
                 ),
-                child: Center(
-                  child: _addingToCart
-                      ? const SizedBox(width: 20, height: 20,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2))
-                      : const Text('ADD TO CART',
-                      style: TextStyle(color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13, letterSpacing: 1)),
+                child: const Text('← Select a size above to continue',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.amber,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ],
+            Row(children: [
+              // Add to Cart
+              Expanded(
+                child: GestureDetector(
+                  onTap: _addToCart,
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(
+                      gradient: canAdd
+                          ? const LinearGradient(colors: [_teal, _green])
+                          : null,
+                      color: canAdd ? null : _border,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: canAdd ? [BoxShadow(
+                        color: _teal.withValues(alpha: 0.3),
+                        blurRadius: 12, offset: const Offset(0, 4),
+                      )] : null,
+                    ),
+                    child: Center(
+                      child: _addingToCart
+                          ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                          : Text(
+                              p.hasVariants && !variantSelected
+                                  ? 'SELECT SIZE'
+                                  : 'ADD TO CART',
+                              style: const TextStyle(color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13, letterSpacing: 1)),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Buy Now
-          Expanded(
-            child: GestureDetector(
-              onTap: p.isInStock ? () => _buyNow(p) : null,
-              child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                      color: p.isInStock ? _teal : _border, width: 1.5),
-                ),
-                child: Center(
-                  child: Text('BUY NOW',
-                      style: TextStyle(
-                        color: p.isInStock ? _teal : _slate,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13, letterSpacing: 1,
-                      )),
+              const SizedBox(width: 12),
+              // Buy Now
+              Expanded(
+                child: GestureDetector(
+                  onTap: canAdd ? () => _buyNow(p) : _addToCart,
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: canAdd ? _teal : _border, width: 1.5),
+                    ),
+                    child: Center(
+                      child: Text('BUY NOW',
+                          style: TextStyle(
+                            color: canAdd ? _teal : _slate,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13, letterSpacing: 1,
+                          )),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ]),
+            ]),
+          ],
+        ),
       ),
     );
   }
@@ -751,4 +1070,39 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
     ]),
   );
+}
+
+// ── Extension: deduplicate a list while preserving order ─────────────────────
+extension _UniqueList<T> on List<T> {
+  void unique() {
+    final seen = <T>{};
+    removeWhere((e) => !seen.add(e));
+  }
+}
+
+// ── Custom painter: diagonal strike for out-of-stock color swatches ──────────
+class _StrikethroughPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawLine(
+      const Offset(0, 0), Offset(size.width, size.height),
+      Paint()..color = Colors.white.withAlpha(160)..strokeWidth = 2,
+    );
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
+// ── Custom painter: diagonal strike for out-of-stock size chips ───────────────
+class _SizeStrikethroughPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawLine(
+      Offset(0, size.height * 0.15),
+      Offset(size.width, size.height * 0.85),
+      Paint()..color = Colors.redAccent.withAlpha(100)..strokeWidth = 1.5,
+    );
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
 }

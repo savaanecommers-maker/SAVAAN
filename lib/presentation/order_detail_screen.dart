@@ -111,6 +111,13 @@ class OrderDetailScreen extends StatelessWidget {
                                 style: const TextStyle(fontSize: 13,
                                     fontWeight: FontWeight.w600, color: _ink,
                                     height: 1.3)),
+                            if (item.variantLabel != null) ...[
+                              const SizedBox(height: 2),
+                              Text(item.variantLabel!,
+                                  style: TextStyle(fontSize: 11,
+                                      color: _teal,
+                                      fontWeight: FontWeight.w500)),
+                            ],
                             const SizedBox(height: 4),
                             Text(
                               'x${item.quantity}  •  ₹${item.price.toStringAsFixed(0)} each',

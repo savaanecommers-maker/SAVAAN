@@ -15,6 +15,7 @@ class ProductModel {
   final List<String> images;
   final bool isFeatured;
   final bool isFlashDeal;
+  final bool hasVariants;
   final double? flashDealPrice;     // admin-set deal price
   final DateTime? flashDealExpiry;  // when the deal expires
   final DateTime? createdAt;
@@ -35,6 +36,7 @@ class ProductModel {
     this.images = const [],
     this.isFeatured = false,
     this.isFlashDeal = false,
+    this.hasVariants = false,
     this.flashDealPrice,
     this.flashDealExpiry,
     this.createdAt,
@@ -107,6 +109,7 @@ class ProductModel {
       images:        imageList,
       isFeatured:      json['is_featured'] == true,
       isFlashDeal:     json['is_flash_deal'] == true,
+      hasVariants:     json['has_variants'] == true,
       flashDealPrice:  json['flash_deal_price'] != null
           ? double.tryParse(json['flash_deal_price'].toString())
           : null,
@@ -201,6 +204,7 @@ class ProductModel {
     List<String>? images,
     bool? isFeatured,
     bool? isFlashDeal,
+    bool? hasVariants,
     DateTime? createdAt,
     List<ProductVariant>? variants,
   }) {
@@ -219,6 +223,7 @@ class ProductModel {
       images:        images ?? this.images,
       isFeatured:    isFeatured ?? this.isFeatured,
       isFlashDeal:   isFlashDeal ?? this.isFlashDeal,
+      hasVariants:   hasVariants ?? this.hasVariants,
       createdAt:     createdAt ?? this.createdAt,
       variants:      variants ?? this.variants,
     );
@@ -246,6 +251,7 @@ class ProductVariant {
   final String? color;
   final String? size;
   final int stock;
+  final double? priceOverride; // optional per-variant price (stored as `price` in DB)
 
   ProductVariant({
     required this.id,
@@ -253,24 +259,33 @@ class ProductVariant {
     this.color,
     this.size,
     this.stock = 0,
+    this.priceOverride,
   });
 
   factory ProductVariant.fromJson(Map<String, dynamic> json) {
+    // `price` in product_variants = price override; `variant_price` from cart JOIN
+    final rawPrice = json['price'] ?? json['variant_price'];
     return ProductVariant(
-      id:        json['id']?.toString() ?? '',
-      productId: json['product_id']?.toString() ?? '',
-      color:     json['color']?.toString(),
-      size:      json['size']?.toString(),
-      stock:     int.tryParse(json['stock']?.toString() ?? '0') ?? 0,
+      id:            json['id']?.toString() ?? '',
+      productId:     json['product_id']?.toString() ?? '',
+      color:         json['color']?.toString() ?? json['variant_color']?.toString(),
+      size:          json['size']?.toString()  ?? json['variant_size']?.toString(),
+      stock:         int.tryParse(
+                       (json['stock'] ?? json['variant_stock'] ?? '0').toString()
+                     ) ?? 0,
+      priceOverride: rawPrice != null
+          ? double.tryParse(rawPrice.toString())
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'id':         id,
-    'product_id': productId,
-    'color':      color,
-    'size':       size,
-    'stock':      stock,
+    'id':             id,
+    'product_id':     productId,
+    'color':          color,
+    'size':           size,
+    'stock':          stock,
+    'price_override': priceOverride,
   };
 
   bool get isInStock => stock > 0;

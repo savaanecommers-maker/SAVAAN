@@ -44,7 +44,7 @@ class OrderService {
       'product_id': i.productId,
       if (i.variantId != null) 'variant_id': i.variantId,
       'quantity':   i.quantity,
-      'price':      i.product?.price ?? 0,
+      'price':      i.unitPrice,  // uses variant price override if set
     }).toList();
 
     final res = await ApiClient.post('/api/orders', {
