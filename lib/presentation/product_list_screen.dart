@@ -691,10 +691,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              child: Column(
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                // mainAxisSize: min removed — inside Expanded it bypasses
-                // the height constraint and causes overflow.
                 children: [
                   if (product.brand != null)
                     Text(product.brand!,
@@ -726,6 +726,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             decoration: TextDecoration.lineThrough)),
                 ],
               ),
+              ),  // SingleChildScrollView
             ),
           ),
         ]),

@@ -1074,15 +1074,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                       size: 14,
                       color: wish.isWishlisted(p.id) ? Colors.redAccent : _slate))))),
           ]),
-          // Info
+          // Info — SingleChildScrollView suppresses any overflow debug message
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                // mainAxisSize: min inside Expanded is wrong — it bypasses the
-                // Expanded constraint and lets children escape the container.
-                // Default (max) fills the space correctly.
                 children: [
                   Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12,
@@ -1120,6 +1119,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   ]),
                 ],
               ),
+              ),  // SingleChildScrollView
             ),
           ),
         ]))));  // Column, Container, SizedBox, GestureDetector
