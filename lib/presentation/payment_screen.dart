@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../models/cart_item_model.dart';
 import '../models/order_model.dart';
 import '../providers/cart_provider.dart';
@@ -9,9 +10,8 @@ import '../providers/order_provider.dart';
 import 'order_success_screen.dart';
 
 // ── Merchant UPI config ────────────────────────────────────────────────────────
-// Change this to your actual UPI VPA before going live.
-const String _kMerchantUpi  = 'savaan@upi';
-const String _kMerchantName = 'Savaan';
+const String _kMerchantUpi  = '9110581825@pthdfc';
+const String _kMerchantName = 'Chakali Nookaraju';
 
 class PaymentScreen extends StatefulWidget {
   final List<CartItemModel> cartItems;
@@ -40,8 +40,6 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   PaymentMethod _selected   = PaymentMethod.upi;
   bool          _isPlacing  = false;
-  // UPI: tracks whether user has tapped "Pay via UPI app" so we show confirm button
-  bool          _upiLaunched = false;
 
   static const Color _ink     = Color(0xFF0F172A);
   static const Color _teal    = Color(0xFF0D9488);
@@ -97,7 +95,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
     if (await canLaunchUrl(upiUri)) {
       await launchUrl(upiUri, mode: LaunchMode.externalApplication);
-      if (mounted) setState(() => _upiLaunched = true);
     } else {
       _showSnackBar(
         'No UPI app found. Please install GPay, PhonePe or BHIM.',
@@ -192,10 +189,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }) {
     final isSelected = _selected == value;
     return GestureDetector(
-      onTap: () => setState(() {
-        _selected    = value;
-        _upiLaunched = false;
-      }),
+      onTap: () => setState(() => _selected = value),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -242,55 +236,125 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   // ── UPI detail panel ──────────────────────────────────────────
   Widget _buildUpiPanel() {
+    // QR encodes the exact amount so the user just scans & pays
+    final upiQrData =
+        'upi://pay?pa=$_kMerchantUpi&pn=${Uri.encodeComponent(_kMerchantName)}'
+        '&am=${widget.total.toStringAsFixed(2)}&cu=INR'
+        '&tn=${Uri.encodeComponent('Savaan order payment')}';
+
     return Container(
       margin: const EdgeInsets.fromLTRB(0, 0, 0, 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _upiGreen.withValues(alpha: 0.04),
+        color: _upiGreen.withValues(alpha: 0.03),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(12),
           bottomRight: Radius.circular(12),
         ),
         border: Border.all(color: _upiGreen.withValues(alpha: 0.2)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Merchant UPI ID + copy
-        Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Pay to UPI ID',
-                  style: TextStyle(fontSize: 11, color: _slate,
-                      fontWeight: FontWeight.w500)),
-              const SizedBox(height: 3),
-              Text(_kMerchantUpi,
-                  style: const TextStyle(fontSize: 15, color: _ink,
-                      fontWeight: FontWeight.w700, letterSpacing: 0.3)),
-            ]),
+      child: Column(children: [
+
+        // ── QR code card ──────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _border),
+            boxShadow: [BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12, offset: const Offset(0, 3),
+            )],
           ),
-          GestureDetector(
-            onTap: () {
-              Clipboard.setData(const ClipboardData(text: _kMerchantUpi));
-              _showSnackBar('UPI ID copied!', _teal);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Column(children: [
+            // Merchant name + verified badge
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(_kMerchantName,
+                  style: const TextStyle(fontSize: 16,
+                      fontWeight: FontWeight.w700, color: _ink)),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                    color: Color(0xFF1DA1F2), shape: BoxShape.circle),
+                child: const Icon(Icons.check, size: 10, color: Colors.white),
+              ),
+            ]),
+            const SizedBox(height: 12),
+
+            // QR code
+            QrImageView(
+              data: upiQrData,
+              version: QrVersions.auto,
+              size: 200,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: _ink,
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: _ink,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // UPI ID row with copy
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: _teal.withValues(alpha: 0.1),
+                color: _surface,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _border),
               ),
               child: Row(children: [
-                Icon(Icons.copy, size: 14, color: _teal),
-                const SizedBox(width: 4),
-                Text('Copy', style: TextStyle(fontSize: 12, color: _teal,
-                    fontWeight: FontWeight.w600)),
+                Container(
+                  width: 20, height: 20,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF00B9F1), shape: BoxShape.circle),
+                  child: const Icon(Icons.flash_on,
+                      size: 12, color: Colors.white),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(_kMerchantUpi,
+                      style: const TextStyle(fontSize: 13,
+                          fontWeight: FontWeight.w600, color: _ink,
+                          letterSpacing: 0.3)),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(const ClipboardData(text: _kMerchantUpi));
+                    _showSnackBar('UPI ID copied!', _teal);
+                  },
+                  child: Icon(Icons.copy, size: 16, color: _teal),
+                ),
               ]),
             ),
+
+            const SizedBox(height: 10),
+            Text('Scan with any UPI app  ·  Paytm · GPay · PhonePe · BHIM',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 10, color: _slate)),
+          ]),
+        ),
+
+        const SizedBox(height: 14),
+
+        // ── OR: open UPI app directly ─────────────────────────
+        Row(children: [
+          Expanded(child: Divider(color: _border)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text('OR', style: TextStyle(fontSize: 11, color: _slate)),
           ),
+          Expanded(child: Divider(color: _border)),
         ]),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
-        // Open UPI app button
         GestureDetector(
           onTap: _launchUpi,
           child: Container(
@@ -313,51 +377,48 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
         const SizedBox(height: 10),
 
-        // How it works note
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(Icons.info_outline, size: 13, color: _slate),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              'Tap the button above. Your UPI app will open (GPay, PhonePe, BHIM etc.). '
-              'Complete the payment there, then come back here and tap "I\'ve Paid".',
+              'Scan the QR above or tap "Open UPI App". '
+              'After payment, come back and tap "I\'ve Paid" to confirm your order.',
               style: TextStyle(fontSize: 11, color: _slate, height: 1.5),
             ),
           ),
         ]),
 
-        // Show "I've Paid" button only after UPI app was launched
-        if (_upiLaunched) ...[
-          const SizedBox(height: 14),
-          GestureDetector(
-            onTap: _isPlacing ? null : _placeOrder,
-            child: Container(
-              height: 46,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [_teal, _green]),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [BoxShadow(
-                  color: _teal.withValues(alpha: 0.3),
-                  blurRadius: 10, offset: const Offset(0, 3),
-                )],
-              ),
-              child: Center(
-                child: _isPlacing
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
-                    : const Text("✓  I've Paid — Confirm Order",
-                        style: TextStyle(color: Colors.white,
-                            fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
+        // ── I've Paid button (always visible — user may have scanned QR) ──
+        const SizedBox(height: 14),
+        GestureDetector(
+          onTap: _isPlacing ? null : _placeOrder,
+          child: Container(
+            height: 46,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [_teal, _green]),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(
+                color: _teal.withValues(alpha: 0.3),
+                blurRadius: 10, offset: const Offset(0, 3),
+              )],
+            ),
+            child: Center(
+              child: _isPlacing
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Text("✓  I've Paid — Confirm Order",
+                      style: TextStyle(color: Colors.white,
+                          fontWeight: FontWeight.bold, fontSize: 13)),
             ),
           ),
-          const SizedBox(height: 6),
-          Center(
-            child: Text('Only tap this after your payment is successful',
-                style: TextStyle(fontSize: 10, color: _slate)),
-          ),
-        ],
+        ),
+        const SizedBox(height: 6),
+        Center(
+          child: Text('Tap only after your UPI payment is successful',
+              style: TextStyle(fontSize: 10, color: _slate)),
+        ),
       ]),
     );
   }
