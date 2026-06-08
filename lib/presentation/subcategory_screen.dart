@@ -183,7 +183,7 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount:   2,
-          childAspectRatio: 0.88,
+          mainAxisExtent:   192, // fixed height — never overflows on any screen size
           crossAxisSpacing: 14,
           mainAxisSpacing:  14,
         ),
