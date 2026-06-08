@@ -797,7 +797,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       _AutoScrollCarousel(
         itemCount:   section.products.length,
         itemWidth:   169.0,  // 155px card + 14px right margin
-        height:      240,
+        height:      246,    // was 240 — matches card height 244 + 2px margin
         itemBuilder: (_, i) => _buildProductCard(section.products[i], section.key),
       ),
       const SizedBox(height: 8),
@@ -1020,7 +1020,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       },
       child: SizedBox(
         width: 155,
-        height: 238,
+        height: 244,   // was 238 — extra 6px prevents 1px overflow from font metric rounding
         child: Container(
         margin: const EdgeInsets.only(right: 14),
         decoration: BoxDecoration(
@@ -1080,7 +1080,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+                // mainAxisSize: min inside Expanded is wrong — it bypasses the
+                // Expanded constraint and lets children escape the container.
+                // Default (max) fills the space correctly.
                 children: [
                   Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12,
@@ -1718,7 +1720,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           Container(margin: const EdgeInsets.fromLTRB(16, 22, 16, 12),
               width: 160, height: 20, decoration: BoxDecoration(
                   color: _surface, borderRadius: BorderRadius.circular(6))),
-          SizedBox(height: 240,
+          SizedBox(height: 246,  // matches live carousel height
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -693,7 +693,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+                // mainAxisSize: min removed — inside Expanded it bypasses
+                // the height constraint and causes overflow.
                 children: [
                   if (product.brand != null)
                     Text(product.brand!,
