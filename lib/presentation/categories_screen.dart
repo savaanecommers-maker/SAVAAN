@@ -126,17 +126,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           )],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Category image
+          // Category image — DB url → slug map → icon placeholder
           Expanded(
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              child: cat.imageUrl != null
-                  ? Image.network(
-                      ApiClient.fixImageUrl(cat.imageUrl!),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _catPlaceholder(cat))
-                  : _catPlaceholder(cat),
+              child: _catImage(cat),
             ),
           ),
           // Name + count row
@@ -158,6 +152,39 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         ]),
       ),
     );
+  }
+
+  // ── Curated Unsplash images for parent category slugs ────────
+  static const Map<String, String> _slugImages = {
+    'fashion':                  'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&h=300&fit=crop',
+    'watches':                  'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop',
+    'beauty-personal-care':     'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400&h=300&fit=crop',
+    'electronics':              'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=300&fit=crop',
+    'home-decor':               'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&h=300&fit=crop',
+    'jewelry-accessories':      'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=400&h=300&fit=crop',
+    'bags-luggage':             'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=300&fit=crop',
+    'footwear':                 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=300&fit=crop',
+    'gifts-luxury-collections': 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=400&h=300&fit=crop',
+    'health-wellness':          'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=300&fit=crop',
+    'mobiles-accessories':      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=300&fit=crop',
+    'seasonal-collections':     'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400&h=300&fit=crop',
+  };
+
+  Widget _catImage(CategoryModel cat) {
+    final dbUrl  = cat.imageUrl != null && cat.imageUrl!.isNotEmpty
+        ? ApiClient.fixImageUrl(cat.imageUrl!) : null;
+    final mapUrl = _slugImages[cat.slug];
+    final url    = dbUrl ?? mapUrl;
+    if (url != null) {
+      return Image.network(url,
+          width: double.infinity, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              (mapUrl != null && url != mapUrl)
+                  ? Image.network(mapUrl, width: double.infinity, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _catPlaceholder(cat))
+                  : _catPlaceholder(cat));
+    }
+    return _catPlaceholder(cat);
   }
 
   // ── Placeholder when image is absent / fails ──────────────────

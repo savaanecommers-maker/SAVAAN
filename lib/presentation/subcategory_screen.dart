@@ -196,6 +196,100 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
   }
 
   // ── Individual subcategory card ───────────────────────────────
+  // ── Curated Unsplash images per subcategory slug ─────────────
+  // Used as fallback when the DB has no imageUrl set.
+  static const Map<String, String> _slugImages = {
+    // ── Watches ──────────────────────────────────────────────────
+    'luxury-watches':   'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop',
+    'smart-watches':    'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=400&h=300&fit=crop',
+    'analog-watches':   'https://images.unsplash.com/photo-1509048191080-d2984bad6ae5?w=400&h=300&fit=crop',
+    'digital-watches':  'https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?w=400&h=300&fit=crop',
+    'couple-watches':   'https://images.unsplash.com/photo-1547996160-81dfa63595aa?w=400&h=300&fit=crop',
+    'sports-watches':   'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=400&h=300&fit=crop',
+    // ── Fashion ──────────────────────────────────────────────────
+    'mens-clothing':    'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=400&h=300&fit=crop',
+    'womens-clothing':  'https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=400&h=300&fit=crop',
+    'kids-wear':        'https://images.unsplash.com/photo-1519457431-44ccd64a579b?w=400&h=300&fit=crop',
+    'ethnic-wear':      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=300&fit=crop',
+    'western-wear':     'https://images.unsplash.com/photo-1551232864-3f0890e580d9?w=400&h=300&fit=crop',
+    'fashion-footwear': 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=400&h=300&fit=crop',
+    'fashion-handbags': 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=300&fit=crop',
+    'wallets':          'https://images.unsplash.com/photo-1627123424574-724758594e93?w=400&h=300&fit=crop',
+    'belts':            'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=300&fit=crop',
+    // ── Beauty ───────────────────────────────────────────────────
+    'perfumes':         'https://images.unsplash.com/photo-1541643600914-78b084683702?w=400&h=300&fit=crop',
+    'skincare':         'https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=400&h=300&fit=crop',
+    'makeup':           'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400&h=300&fit=crop',
+    'hair-care':        'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=300&fit=crop',
+    'grooming-kits':    'https://images.unsplash.com/photo-1621607505329-3ec10b41b23b?w=400&h=300&fit=crop',
+    'bath-body':        'https://images.unsplash.com/photo-1570194065650-d99fb4bedf0a?w=400&h=300&fit=crop',
+    // ── Electronics ──────────────────────────────────────────────
+    'smartphones':      'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=300&fit=crop',
+    'laptops':          'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop',
+    'tablets':          'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400&h=300&fit=crop',
+    'headphones':       'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=300&fit=crop',
+    'smart-gadgets':    'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop',
+    'accessories':      'https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=400&h=300&fit=crop',
+    'elec-accessories': 'https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=400&h=300&fit=crop',
+    // ── Home Decor ───────────────────────────────────────────────
+    'wall-art':         'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=400&h=300&fit=crop',
+    'lamps-lighting':   'https://images.unsplash.com/photo-1513506003901-1e6a35549853?w=400&h=300&fit=crop',
+    'decorative-items': 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
+    'furniture':        'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&h=300&fit=crop',
+    'vases':            'https://images.unsplash.com/photo-1578500494198-246f612d3b3d?w=400&h=300&fit=crop',
+    'clocks':           'https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?w=400&h=300&fit=crop',
+    // ── Jewelry ──────────────────────────────────────────────────
+    'necklaces':           'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=400&h=300&fit=crop',
+    'earrings':            'https://images.unsplash.com/photo-1535556116002-6281ff3e9f36?w=400&h=300&fit=crop',
+    'rings':               'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400&h=300&fit=crop',
+    'bracelets':           'https://images.unsplash.com/photo-1573408301185-9519f94edc26?w=400&h=300&fit=crop',
+    'sunglasses':          'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=400&h=300&fit=crop',
+    'fashion-accessories': 'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&h=300&fit=crop',
+    // ── Bags ─────────────────────────────────────────────────────
+    'travel-bags':  'https://images.unsplash.com/photo-1565026057447-bc90a3dceb87?w=400&h=300&fit=crop',
+    'backpacks':    'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=300&fit=crop',
+    'trolley-bags': 'https://images.unsplash.com/photo-1565026057447-bc90a3dceb87?w=400&h=300&fit=crop',
+    'laptop-bags':  'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=300&fit=crop',
+    'bags-handbags':'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=300&fit=crop',
+    // ── Footwear ─────────────────────────────────────────────────
+    'casual-shoes': 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=300&fit=crop',
+    'formal-shoes': 'https://images.unsplash.com/photo-1614252235316-8c857d38b5f4?w=400&h=300&fit=crop',
+    'sneakers':     'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=300&fit=crop',
+    'sandals':      'https://images.unsplash.com/photo-1603487742131-4160ec999306?w=400&h=300&fit=crop',
+    'sports-shoes': 'https://images.unsplash.com/photo-1556906781-9a412961d28e?w=400&h=300&fit=crop',
+    // ── Gifts ────────────────────────────────────────────────────
+    'premium-gift-sets':   'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=400&h=300&fit=crop',
+    'corporate-gifts':     'https://images.unsplash.com/photo-1607344645866-009c320b63e0?w=400&h=300&fit=crop',
+    'festival-collections':'https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=400&h=300&fit=crop',
+    'luxury-collections':  'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=400&h=300&fit=crop',
+    // ── Health & Fitness ─────────────────────────────────────────
+    'fitness-equipment': 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=300&fit=crop',
+    'yoga-accessories':  'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop',
+    'health-devices':    'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=300&fit=crop',
+    'supplements':       'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&h=300&fit=crop',
+    // ── Mobiles ──────────────────────────────────────────────────
+    'mobile-phones': 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=400&h=300&fit=crop',
+    'cases-covers':  'https://images.unsplash.com/photo-1601593346740-925612772716?w=400&h=300&fit=crop',
+    'chargers':      'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=300&fit=crop',
+    'power-banks':   'https://images.unsplash.com/photo-1609592806596-b8a33e92c0c6?w=400&h=300&fit=crop',
+    'earbuds':       'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=300&fit=crop',
+    // ── Seasonal / Featured ──────────────────────────────────────
+    'summer-collection':          'https://images.unsplash.com/photo-1473496169904-658ba7574b0d?w=400&h=300&fit=crop',
+    'winter-collection':          'https://images.unsplash.com/photo-1542060748-10c28b62716f?w=400&h=300&fit=crop',
+    'festival-specials':          'https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=400&h=300&fit=crop',
+    'new-arrivals':               'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&h=300&fit=crop',
+    'seasonal-new-arrivals':      'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&h=300&fit=crop',
+    'featured-new-arrivals':      'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&h=300&fit=crop',
+    'best-sellers':               'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400&h=300&fit=crop',
+    'seasonal-best-sellers':      'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400&h=300&fit=crop',
+    'trending-products':          'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&h=300&fit=crop',
+    'flash-deals':                'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400&h=300&fit=crop',
+    'premium-collection':         'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop',
+    'luxury-collection':          'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop',
+    'featured-luxury-collection': 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop',
+    'exclusive-offers':           'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400&h=300&fit=crop',
+  };
+
   Widget _buildSubCard(CategoryModel sub) {
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -218,19 +312,12 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
           ],
         ),
         child: Column(children: [
-          // Image / icon area
+          // Image / icon area — prefer DB imageUrl, fall back to slug map, then icon
           Expanded(
             flex: 5,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              child: sub.imageUrl != null && sub.imageUrl!.isNotEmpty
-                  ? Image.network(
-                      ApiClient.fixImageUrl(sub.imageUrl!),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _iconArea(sub),
-                    )
-                  : _iconArea(sub),
+              child: _buildSubImage(sub),
             ),
           ),
           // Name + item count
@@ -265,6 +352,29 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
         ]),
       ),
     );
+  }
+
+  /// Returns a network image for [sub], trying:
+  ///  1. DB imageUrl  2. curated slug map  3. icon placeholder
+  Widget _buildSubImage(CategoryModel sub) {
+    final dbUrl   = sub.imageUrl != null && sub.imageUrl!.isNotEmpty
+        ? ApiClient.fixImageUrl(sub.imageUrl!) : null;
+    final mapUrl  = _slugImages[sub.slug];
+    final url     = dbUrl ?? mapUrl;
+
+    if (url != null) {
+      return Image.network(
+        url,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => mapUrl != null && url != mapUrl
+            // DB url failed → try map url
+            ? Image.network(mapUrl, width: double.infinity, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _iconArea(sub))
+            : _iconArea(sub),
+      );
+    }
+    return _iconArea(sub);
   }
 
   Widget _iconArea(CategoryModel sub) => Container(
