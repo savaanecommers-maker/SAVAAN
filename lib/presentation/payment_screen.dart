@@ -51,9 +51,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   // ── COD: place immediately ────────────────────────────────────
   Future<void> _placeCodOrder() async {
+    final cartProvider = context.read<CartProvider>();
+    final orderProvider = context.read<OrderProvider>();
     setState(() => _isPlacing = true);
     try {
-      final (order, error) = await context.read<OrderProvider>().placeOrder(
+      final (order, error) = await orderProvider.placeOrder(
         cartItems:     widget.cartItems,
         addressId:     widget.selectedAddressId,
         paymentMethod: PaymentMethod.cod,
@@ -64,7 +66,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         couponCode:    widget.couponCode,
       );
       if (error != null) throw Exception(error);
-      context.read<CartProvider>().clear();
+      cartProvider.clear();
       if (mounted && order != null) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -78,19 +80,22 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isPlacing = false);
         _showSnackBar('Failed to place order. Please try again.', Colors.redAccent);
       }
+    } finally {
+      if (mounted) setState(() => _isPlacing = false);
     }
   }
 
   // ── UPI: show UTR dialog, then place ─────────────────────────
   Future<void> _confirmUpiPayment() async {
+    final cartProvider  = context.read<CartProvider>();
+    final orderProvider = context.read<OrderProvider>();
     final utr = await _showUtrDialog();
     if (utr == null) return; // user cancelled
     setState(() => _isPlacing = true);
     try {
-      final (order, error) = await context.read<OrderProvider>().placeOrder(
+      final (order, error) = await orderProvider.placeOrder(
         cartItems:        widget.cartItems,
         addressId:        widget.selectedAddressId,
         paymentMethod:    PaymentMethod.upi,
@@ -102,7 +107,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         paymentReference: utr,
       );
       if (error != null) throw Exception(error);
-      context.read<CartProvider>().clear();
+      cartProvider.clear();
       if (mounted && order != null) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -117,9 +122,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isPlacing = false);
         _showSnackBar('Failed to place order. Please try again.', Colors.redAccent);
       }
+    } finally {
+      if (mounted) setState(() => _isPlacing = false);
     }
   }
 

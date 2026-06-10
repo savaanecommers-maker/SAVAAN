@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../data/api_client.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/wishlist_provider.dart';
 import 'auth_screens.dart';
+import 'legal_doc_screen.dart';
+import 'help_support_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,6 +30,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _biometricLogin       = false;
   String _currency           = 'INR';
   String _language           = 'English';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocalPrefs();
+  }
+
+  Future<void> _loadLocalPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _notificationsEnabled = prefs.getBool('pref_notifications') ?? true;
+        _orderUpdates         = prefs.getBool('pref_order_updates') ?? true;
+        _promoAlerts          = prefs.getBool('pref_promotions') ?? true;
+        _priceDropAlerts      = prefs.getBool('pref_price_drops') ?? true;
+        _emailNewsletters     = prefs.getBool('pref_email_newsletters') ?? false;
+        _biometricLogin       = prefs.getBool('pref_biometric') ?? false;
+        _language             = prefs.getString('language') ?? 'English';
+        _currency             = prefs.getString('currency') ?? 'INR';
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _persistPref(String key, dynamic value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (value is bool) await prefs.setBool(key, value);
+      if (value is String) await prefs.setString(key, value);
+    } catch (_) {}
+  }
+
+  void _syncPrefsToBackend() {
+    // Fire-and-forget: ignore any network errors silently
+    ApiClient.put('/api/auth/preferences', {
+      'notifications_orders':      _orderUpdates,
+      'notifications_promotions':  _promoAlerts,
+      'notifications_price_drops': _priceDropAlerts,
+      'email_newsletters':         _emailNewsletters,
+      'language':                  _language,
+      'currency':                  _currency,
+    // ignore: invalid_return_type_for_catch_error
+    }).catchError((dynamic _) => const ApiResponse(data: null, error: null));
+  }
 
   static const Color _ink     = Color(0xFF0F172A);
   static const Color _teal    = Color(0xFF0D9488);
@@ -82,42 +131,321 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
-    if (confirmed == true) {
-      // Sign out and show auth
-      await context.read<AuthProvider>().signOut();
-      context.read<CartProvider>().clear();
-      context.read<WishlistProvider>().clear();
-      context.read<ProductProvider>().clear();
-      context.read<OrderProvider>().clear();
+    if (confirmed == true && mounted) {
+      // Call backend delete endpoint
+      final authProvider = context.read<AuthProvider>();
+      final res = await ApiClient.delete('/api/auth/account',
+          body: {'confirm': true});
+      if (!mounted) return;
+      if (!res.isSuccess) {
+        _showSnackBar('Failed to delete account: ${res.error ?? 'Unknown error'}');
+        return;
+      }
+      await _clearAllLocalData();
+      await authProvider.signOut();
+      if (!mounted) return;
+      _clearProviders();
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const AuthParentPage()),
-              (_) => false,
+          (_) => false,
         );
       }
     }
   }
 
+  Future<void> _clearAllLocalData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (_) {}
+    await ApiClient.clearTokens();
+  }
+
+  void _clearProviders() {
+    context.read<CartProvider>().clear();
+    context.read<WishlistProvider>().clear();
+    context.read<ProductProvider>().clear();
+    context.read<OrderProvider>().clear();
+  }
+
   Future<void> _logout() async {
-    await context.read<AuthProvider>().signOut();
-      context.read<CartProvider>().clear();
-      context.read<WishlistProvider>().clear();
-      context.read<ProductProvider>().clear();
-      context.read<OrderProvider>().clear();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const AuthParentPage()),
-            (_) => false,
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Logout',
+            style: TextStyle(fontWeight: FontWeight.bold, color: _ink)),
+        content: const Text('Are you sure you want to logout?',
+            style: TextStyle(color: _slate)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: TextStyle(color: _slate)),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.pop(context, true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(10)),
+              child: const Text('Logout',
+                  style: TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await context.read<AuthProvider>().signOut();
+      _clearProviders();
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthParentPage()),
+          (_) => false,
+        );
+      }
+    }
+  }
+
+  void _showChangePasswordSheet() {
+    final currentCtrl  = TextEditingController();
+    final newCtrl      = TextEditingController();
+    final confirmCtrl  = TextEditingController();
+    final formKey      = GlobalKey<FormState>();
+    var   isSaving     = false;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setModal) {
+          Future<void> submit() async {
+            if (!formKey.currentState!.validate()) return;
+            setModal(() => isSaving = true);
+            final res = await ApiClient.post('/api/auth/change-password', {
+              'current_password': currentCtrl.text,
+              'new_password':     newCtrl.text,
+            });
+            setModal(() => isSaving = false);
+            if (!ctx.mounted) return;
+            if (res.isSuccess) {
+              Navigator.pop(ctx);
+              _showSnackBar('Password changed successfully!');
+            } else {
+              final msg = res.data?['error']?.toString() ??
+                  res.error ?? 'Failed to change password';
+              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                content: Text(msg, style: const TextStyle(color: Colors.white)),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.all(16),
+              ));
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Form(
+              key: formKey,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Center(child: Container(width: 36, height: 4,
+                    decoration: BoxDecoration(color: _border,
+                        borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 16),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Change Password',
+                      style: TextStyle(fontSize: 17,
+                          fontWeight: FontWeight.bold, color: _ink)),
+                ),
+                const SizedBox(height: 16),
+                _pwField(currentCtrl, 'Current Password',
+                    validator: (v) => (v == null || v.isEmpty)
+                        ? 'Enter current password' : null),
+                const SizedBox(height: 12),
+                _pwField(newCtrl, 'New Password',
+                    validator: (v) => (v == null || v.length < 8)
+                        ? 'At least 8 characters' : null),
+                const SizedBox(height: 12),
+                _pwField(confirmCtrl, 'Confirm New Password',
+                    validator: (v) => v != newCtrl.text
+                        ? 'Passwords do not match' : null),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: isSaving ? null : submit,
+                  child: Container(
+                    width: double.infinity, height: 48,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [_teal, Color(0xFF10B981)]),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: isSaving
+                          ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                          : const Text('UPDATE PASSWORD',
+                          style: TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14, letterSpacing: 1)),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  Widget _pwField(TextEditingController ctrl, String label,
+      {String? Function(String?)? validator}) {
+    var obscure = true;
+    return StatefulBuilder(builder: (_, setField) {
+      return TextFormField(
+        controller: ctrl,
+        obscureText: obscure,
+        validator: validator,
+        style: const TextStyle(fontSize: 14, color: _ink),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(fontSize: 13, color: _slate),
+          prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20, color: _slate),
+          suffixIcon: IconButton(
+            icon: Icon(obscure ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined, size: 20, color: _slate),
+            onPressed: () => setField(() => obscure = !obscure),
+          ),
+          filled: true, fillColor: _surface,
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _border)),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: _border)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _teal, width: 1.5)),
+          errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.redAccent)),
+          focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        ),
       );
+    });
+  }
+
+  void _showActiveSessionsDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Active Sessions',
+            style: TextStyle(fontWeight: FontWeight.bold, color: _ink)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _surface, borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _border),
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.smartphone_rounded,
+                    size: 20, color: Color(0xFF6366F1)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('This Device',
+                      style: TextStyle(fontSize: 13,
+                          fontWeight: FontWeight.w600, color: _ink)),
+                  Text('Active session',
+                      style: TextStyle(fontSize: 11, color: _slate)),
+                ],
+              )),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text('Current',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF10B981),
+                        fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: _slate)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await context.read<AuthProvider>().signOut();
+              _clearProviders();
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuthParentPage()),
+                  (_) => false,
+                );
+              }
+            },
+            child: const Text('Logout All Devices',
+                style: TextStyle(color: Colors.redAccent,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _rateApp() async {
+    const url = 'https://play.google.com/store/apps/details?id=com.savaan.app';
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      _showSnackBar('Thank you for your support!');
     }
   }
 
   void _showCurrencyPicker() {
     final currencies = ['INR (₹)', 'USD (\$)', 'EUR (€)', 'GBP (£)', 'AED (د.إ)'];
     _showPickerSheet('Currency', currencies, (v) {
-      setState(() => _currency = v.split(' ').first);
+      final selected = v.split(' ').first;
+      setState(() => _currency = selected);
+      _persistPref('currency', selected);
+      _syncPrefsToBackend();
+      _showSnackBar('Currency preference saved');
     });
   }
 
@@ -125,6 +453,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final langs = ['English', 'हिंदी', 'தமிழ்', 'తెలుగు', 'मराठी', 'বাংলা'];
     _showPickerSheet('Language', langs, (v) {
       setState(() => _language = v);
+      _persistPref('language', v);
+      _syncPrefsToBackend();
+      _showSnackBar('Language saved (restart app to apply)');
     });
   }
 
@@ -212,14 +543,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: 'Push Notifications',
                     subtitle: 'Enable all app notifications',
                     value: _notificationsEnabled,
-                    onChanged: (v) => setState(() {
-                      _notificationsEnabled = v;
-                      if (!v) {
-                        _orderUpdates = false;
-                        _promoAlerts = false;
-                        _priceDropAlerts = false;
-                      }
-                    }),
+                    onChanged: (v) {
+                      setState(() {
+                        _notificationsEnabled = v;
+                        if (!v) {
+                          _orderUpdates = false;
+                          _promoAlerts = false;
+                          _priceDropAlerts = false;
+                        }
+                      });
+                      _persistPref('pref_notifications', v);
+                      _syncPrefsToBackend();
+                    },
                   ),
                   _divider(),
                   _switchTile(
@@ -229,7 +564,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Shipping, delivery & status changes',
                     value: _orderUpdates && _notificationsEnabled,
                     onChanged: _notificationsEnabled
-                        ? (v) => setState(() => _orderUpdates = v)
+                        ? (v) {
+                            setState(() => _orderUpdates = v);
+                            _persistPref('pref_order_updates', v);
+                            _syncPrefsToBackend();
+                          }
                         : null,
                   ),
                   _divider(),
@@ -240,7 +579,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Flash sales, coupons & offers',
                     value: _promoAlerts && _notificationsEnabled,
                     onChanged: _notificationsEnabled
-                        ? (v) => setState(() => _promoAlerts = v)
+                        ? (v) {
+                            setState(() => _promoAlerts = v);
+                            _persistPref('pref_promotions', v);
+                            _syncPrefsToBackend();
+                          }
                         : null,
                   ),
                   _divider(),
@@ -251,7 +594,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'When wishlist items go on sale',
                     value: _priceDropAlerts && _notificationsEnabled,
                     onChanged: _notificationsEnabled
-                        ? (v) => setState(() => _priceDropAlerts = v)
+                        ? (v) {
+                            setState(() => _priceDropAlerts = v);
+                            _persistPref('pref_price_drops', v);
+                            _syncPrefsToBackend();
+                          }
                         : null,
                   ),
                   _divider(),
@@ -261,7 +608,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: 'Email Newsletters',
                     subtitle: 'Weekly picks & new arrivals',
                     value: _emailNewsletters,
-                    onChanged: (v) => setState(() => _emailNewsletters = v),
+                    onChanged: (v) {
+                      setState(() => _emailNewsletters = v);
+                      _persistPref('pref_email_newsletters', v);
+                      _syncPrefsToBackend();
+                    },
                   ),
                 ]),
 
@@ -276,7 +627,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: 'Biometric Login',
                     subtitle: 'Use fingerprint or face ID',
                     value: _biometricLogin,
-                    onChanged: (v) => setState(() => _biometricLogin = v),
+                    onChanged: (v) {
+                      setState(() => _biometricLogin = v);
+                      _persistPref('pref_biometric', v);
+                      // local_auth not in pubspec — store preference only
+                      _showSnackBar(v
+                          ? 'Biometric login enabled'
+                          : 'Biometric login disabled');
+                    },
                   ),
                   _divider(),
                   _arrowTile(
@@ -284,7 +642,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     iconColor: const Color(0xFF64748B),
                     label: 'Change Password',
                     subtitle: 'Update your account password',
-                    onTap: () => _showSnackBar('Password reset email sent!'),
+                    onTap: _showChangePasswordSheet,
                   ),
                   _divider(),
                   _arrowTile(
@@ -292,7 +650,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     iconColor: const Color(0xFF6366F1),
                     label: 'Active Sessions',
                     subtitle: 'Manage devices logged into your account',
-                    onTap: () => _showSnackBar('Coming soon'),
+                    onTap: _showActiveSessionsDialog,
                   ),
                 ]),
 
@@ -336,28 +694,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.privacy_tip_outlined,
                     iconColor: const Color(0xFF6366F1),
                     label: 'Privacy Policy',
-                    onTap: () => _showSnackBar('Opening privacy policy...'),
+                    onTap: () {
+                      try {
+                        Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => const LegalDocScreen(slug: 'privacy_policy'),
+                        ));
+                      } catch (_) {
+                        _showSnackBar('Privacy Policy coming soon');
+                      }
+                    },
                   ),
                   _divider(),
                   _arrowTile(
                     icon: Icons.description_outlined,
                     iconColor: const Color(0xFF64748B),
                     label: 'Terms & Conditions',
-                    onTap: () => _showSnackBar('Opening terms...'),
+                    onTap: () {
+                      try {
+                        Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => const LegalDocScreen(slug: 'terms_conditions'),
+                        ));
+                      } catch (_) {
+                        _showSnackBar('Terms & Conditions coming soon');
+                      }
+                    },
                   ),
                   _divider(),
                   _arrowTile(
                     icon: Icons.help_outline_rounded,
                     iconColor: const Color(0xFF8B5CF6),
                     label: 'Help & Support',
-                    onTap: () => _showSnackBar('Opening support...'),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const HelpSupportScreen(),
+                    )),
                   ),
                   _divider(),
                   _arrowTile(
                     icon: Icons.star_outline_rounded,
                     iconColor: const Color(0xFFF59E0B),
                     label: 'Rate the App',
-                    onTap: () => _showSnackBar('Opening app store...'),
+                    onTap: _rateApp,
                   ),
                 ]),
 
@@ -485,7 +861,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: _teal,
+        activeThumbColor: _teal,
+        activeTrackColor: _teal.withValues(alpha: 0.4),
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),

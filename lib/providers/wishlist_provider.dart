@@ -26,6 +26,7 @@ class WishlistProvider extends ChangeNotifier {
       _ids      = _products.map((p) => p.id).toSet();
     } catch (_) {
       _products = [];
+      _ids      = {};
     } finally {
       _isLoading = false;
       notifyListeners();

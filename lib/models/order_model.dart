@@ -45,7 +45,7 @@ class OrderModel {
     List<OrderItemModel> itemList = [];
     final rawItems = json['items'] ?? json['order_items'];
     if (rawItems != null && rawItems is List) {
-      itemList = (rawItems as List)
+      itemList = rawItems
           .map((i) => OrderItemModel.fromJson(i as Map<String, dynamic>))
           .toList();
     }
@@ -137,6 +137,7 @@ class OrderModel {
     String? couponCode,
     PaymentMethod? paymentMethod,
     String? paymentId,
+    PaymentStatus? paymentStatus,
     DateTime? createdAt,
     List<OrderItemModel>? items,
     OrderAddress? address,
@@ -154,6 +155,7 @@ class OrderModel {
       couponCode:    couponCode ?? this.couponCode,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paymentId:     paymentId ?? this.paymentId,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
       createdAt:     createdAt ?? this.createdAt,
       items:         items ?? this.items,
       address:       address ?? this.address,

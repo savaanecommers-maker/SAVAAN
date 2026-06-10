@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
@@ -29,23 +30,31 @@ class _WishlistScreenState extends State<WishlistScreen> {
     });
   }
 
-  Future<void> _addToCart(productId, productName) async {
-    final error = await context.read<CartProvider>().addToCart(
-      productId: productId,
-      quantity: 1,
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-          error == null ? '$productName added to cart!' : 'Failed to add to cart',
-          style: const TextStyle(color: Colors.white),
-        ),
-        backgroundColor: error == null ? _teal : Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ));
+  void _addToCart(BuildContext context, dynamic product) {
+    if (product.hasVariants == true) {
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => ProductDetailScreen(productId: product.id)));
+      return;
     }
+    // Non-variant products: add directly
+    final messenger = ScaffoldMessenger.of(context);
+    context.read<CartProvider>().addToCart(
+      productId: product.id,
+      quantity: 1,
+    ).then((error) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(
+            error == null ? '${product.name} added to cart!' : 'Failed to add to cart',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: error == null ? _teal : Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    });
   }
 
   @override
@@ -107,7 +116,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
     );
   }
 
-  Widget _buildItem(product, WishlistProvider wishlist) {
+  Widget _buildItem(dynamic product, WishlistProvider wishlist) {
     return Dismissible(
       key: Key(product.id),
       direction: DismissDirection.endToStart,
@@ -144,9 +153,10 @@ class _WishlistScreenState extends State<WishlistScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: product.primaryImage != null
-                  ? Image.network(product.primaryImage!,
+                  ? CachedNetworkImage(imageUrl: product.primaryImage!,
                       width: 90, height: 90, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imgPlaceholder())
+                      placeholder: (_, __) => _imgPlaceholder(),
+                      errorWidget: (_, __, ___) => _imgPlaceholder())
                   : _imgPlaceholder(),
             ),
           ),
@@ -210,7 +220,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
               const SizedBox(height: 10),
               GestureDetector(
                 onTap: product.isInStock
-                    ? () => _addToCart(product.id, product.name)
+                    ? () => _addToCart(context, product)
                     : null,
                 child: Container(
                   height: 36,

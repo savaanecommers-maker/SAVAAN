@@ -50,10 +50,12 @@ class _LegalDocScreenState extends State<LegalDocScreen> {
         });
       }
     } on Exception catch (e) {
-      if (mounted) setState(() {
-        _error = 'Network error: ${e.toString()}';
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Network error: ${e.toString()}';
+          _loading = false;
+        });
+      }
     }
   }
 

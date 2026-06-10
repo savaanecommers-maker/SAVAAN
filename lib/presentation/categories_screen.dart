@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/category_service.dart';
@@ -171,18 +172,20 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   };
 
   Widget _catImage(CategoryModel cat) {
-    final dbUrl  = cat.imageUrl != null && cat.imageUrl!.isNotEmpty
-        ? ApiClient.fixImageUrl(cat.imageUrl!) : null;
+    final dbUrl  = ApiClient.fixImageUrl(cat.imageUrl);
     final mapUrl = _slugImages[cat.slug];
     final url    = dbUrl ?? mapUrl;
     if (url != null) {
-      return Image.network(url,
+      return CachedNetworkImage(
+          imageUrl: url,
           width: double.infinity, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
-              (mapUrl != null && url != mapUrl)
-                  ? Image.network(mapUrl, width: double.infinity, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _catPlaceholder(cat))
-                  : _catPlaceholder(cat));
+          placeholder: (_, __) => const SizedBox.shrink(),
+          errorWidget: (_, __, ___) => mapUrl != null && url != mapUrl
+              ? CachedNetworkImage(imageUrl: mapUrl,
+                  width: double.infinity, fit: BoxFit.cover,
+                  placeholder: (_, __) => const SizedBox.shrink(),
+                  errorWidget: (_, __, ___) => _catPlaceholder(cat))
+              : _catPlaceholder(cat));
     }
     return _catPlaceholder(cat);
   }

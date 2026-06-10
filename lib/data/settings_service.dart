@@ -6,7 +6,7 @@ class SettingsService {
     if (!res.isSuccess) return _defaults;
     try {
       return Map<String, String>.from(
-        (res.data! as Map<String, dynamic>).map((k, v) => MapEntry(k, v.toString()))
+        res.data!.map((k, v) => MapEntry(k, v.toString()))
       );
     } catch (_) {
       return _defaults;

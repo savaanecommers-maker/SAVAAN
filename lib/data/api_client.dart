@@ -16,7 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// ⚠️  Allow port 4000 through Windows Firewall (see below).
 const String kApiBase = String.fromEnvironment(
   'API_BASE',
-  defaultValue: 'http://192.168.31.109:4000',
+  defaultValue: 'http://10.0.2.2:4000',
 );
 
 const _kAccessToken  = 'access_token';
@@ -181,20 +181,30 @@ class ApiClient {
   static Future<ApiResponse> put(String path, Map<String, dynamic> body) =>
       _send((h) => http.put(Uri.parse('$kApiBase$path'), headers: h, body: json.encode(body)));
 
-  static Future<ApiResponse> delete(String path) =>
-      _send((h) => http.delete(Uri.parse('$kApiBase$path'), headers: h));
+  static Future<ApiResponse> patch(String path, Map<String, dynamic> body) =>
+      _send((h) => http.patch(Uri.parse('$kApiBase$path'), headers: h, body: json.encode(body)));
+
+  static Future<ApiResponse> delete(String path, {Map<String, dynamic>? body}) =>
+      _send((h) => http.delete(Uri.parse('$kApiBase$path'), headers: h,
+          body: body != null ? json.encode(body) : null));
 
   // ── Image URL fixer ──────────────────────────────────────────
   /// Rewrites backend-stored localhost URLs to use the same host as [kApiBase].
   /// Uploaded images are stored as http://localhost:4000/uploads/... by the server,
   /// but the Android emulator cannot reach `localhost` — it needs `10.0.2.2`.
-  static String fixImageUrl(String url) {
-    if (url.isEmpty) return url;
+  /// Returns null if the URL is not a valid HTTP/HTTPS image URL (e.g. data URIs,
+  /// empty strings, or local paths that can't be reached from the device).
+  static String? fixImageUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    // data: URIs cannot be loaded by CachedNetworkImage — discard them
+    if (url.startsWith('data:')) return null;
+    // Local file paths (no scheme) — not reachable on device
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return null;
+    // Rewrite localhost/127.0.0.1 to the device-reachable API base
     if (url.startsWith('http://localhost:') ||
         url.startsWith('http://127.0.0.1:')) {
       final uri = Uri.tryParse(url);
-      if (uri == null) return url;
-      // Replace scheme+host+port with kApiBase
+      if (uri == null) return null;
       return url.replaceFirst(
         '${uri.scheme}://${uri.host}:${uri.port}',
         kApiBase,

@@ -68,9 +68,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted && _isLoading) setState(() => _isLoading = false);
-    });
     try {
       final loggedIn = await ApiClient.isLoggedIn;
       if (!loggedIn) { if (mounted) setState(() => _isLoading = false); return; }
@@ -144,14 +141,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (confirmed == true && mounted) {
-      await context.read<AuthProvider>().signOut();
-      context.read<CartProvider>().clear();
-      context.read<WishlistProvider>().clear();
-      context.read<ProductProvider>().clear();
-      context.read<OrderProvider>().clear();
+      final authProvider    = context.read<AuthProvider>();
+      final cartProvider    = context.read<CartProvider>();
+      final wishlistProvider= context.read<WishlistProvider>();
+      final productProvider = context.read<ProductProvider>();
+      final orderProvider   = context.read<OrderProvider>();
+      final nav             = Navigator.of(context);
+      await authProvider.signOut();
+      cartProvider.clear();
+      wishlistProvider.clear();
+      productProvider.clear();
+      orderProvider.clear();
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
+        nav.pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthParentPage()),
           (_) => false,
         );
@@ -168,70 +170,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _CouponsSheet(),
-    );
-  }
-
-  // ── Help & Support bottom sheet ──────────────────────────────
-  void _showHelp() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 36, height: 4,
-              decoration: BoxDecoration(color: _border,
-                  borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 16),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Help & Support',
-                style: TextStyle(fontSize: 18,
-                    fontWeight: FontWeight.bold, color: _ink)),
-          ),
-          const SizedBox(height: 20),
-          _helpTile(Icons.email_outlined, 'Email Us',
-              'support@savaan.in', const Color(0xFF6366F1)),
-          const SizedBox(height: 12),
-          _helpTile(Icons.phone_outlined, 'Call Us',
-              '+91 98765 43210', const Color(0xFF10B981)),
-          const SizedBox(height: 12),
-          _helpTile(Icons.chat_bubble_outline_rounded, 'Live Chat',
-              'Available 9 AM – 9 PM', const Color(0xFF0EA5E9)),
-          const SizedBox(height: 12),
-          _helpTile(Icons.description_outlined, 'FAQ',
-              'Browse common questions', const Color(0xFFF59E0B)),
-        ]),
-      ),
-    );
-  }
-
-  Widget _helpTile(IconData icon, String title, String sub, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 18, color: color),
-        ),
-        const SizedBox(width: 12),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
-          const SizedBox(height: 2),
-          Text(sub, style: TextStyle(fontSize: 12, color: _slate)),
-        ]),
-      ]),
     );
   }
 

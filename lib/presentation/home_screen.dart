@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
@@ -64,7 +65,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   static const int    _catRepeat   = 999;   // virtual repeat count for seamless loop
   static const int    _catMid      = 499;   // start at midpoint of the virtual list
   static const double _catRow1Speed = 50.0; // px/s  ← change this to tune Row 1
-  static const double _catRow2Speed = 45.0; // px/s  ← change this to tune Row 2
 
   // ── Colors ───────────────────────────────────────────────────
   static const Color _ink     = Color(0xFF0F172A);
@@ -225,11 +225,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     });
     _catRow2Ticker?.dispose();
     Duration lastTick = Duration.zero;
+    double carry2 = 0.0; // pixel accumulator — prevents sub-pixel jitter
     _catRow2Ticker = createTicker((elapsed) {
       final dt = elapsed - lastTick;
       lastTick = elapsed;
       if (!mounted || _userScrollingRow2 || !_catRow2Controller.hasClients) return;
-      final newOffset = _catRow2Controller.offset - 35.0 * dt.inMilliseconds / 1000.0;
+      carry2 += 35.0 * dt.inMicroseconds / 1000000.0;
+      if (carry2 < 1.0) return;
+      final pixels = carry2.floorToDouble();
+      carry2 -= pixels;
+      final newOffset = _catRow2Controller.offset - pixels;
       // When approaching the start of the virtual list, jump back to initialOffset —
       // same visual content (i % count) so there's no visible discontinuity.
       if (newOffset < _catItemW * count * 50) {
@@ -254,21 +259,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   }
 
   Future<void> _loadData() async {
-    await context.read<HomepageProvider>().refresh();
-    await context.read<CartProvider>().loadCart();
-    await context.read<WishlistProvider>().loadIds();
+    final homepageProvider = context.read<HomepageProvider>();
+    final cartProvider     = context.read<CartProvider>();
+    final wishlistProvider = context.read<WishlistProvider>();
+    await homepageProvider.refresh();
+    await cartProvider.loadCart();
+    await wishlistProvider.loadIds();
     _fetchNotifCount();
   }
 
   Future<void> _logout() async {
-    await context.read<AuthProvider>().signOut();
-    context.read<CartProvider>().clear();
-    context.read<WishlistProvider>().clear();
-    context.read<ProductProvider>().clear();
-    context.read<HomepageProvider>().clear();
-    context.read<OrderProvider>().clear();
+    final authProvider     = context.read<AuthProvider>();
+    final cartProvider     = context.read<CartProvider>();
+    final wishlistProvider = context.read<WishlistProvider>();
+    final productProvider  = context.read<ProductProvider>();
+    final homepageProvider = context.read<HomepageProvider>();
+    final orderProvider    = context.read<OrderProvider>();
+    final nav              = Navigator.of(context);
+    await authProvider.signOut();
+    cartProvider.clear();
+    wishlistProvider.clear();
+    productProvider.clear();
+    homepageProvider.clear();
+    orderProvider.clear();
     if (mounted) {
-      Navigator.pushAndRemoveUntil(context,
+      nav.pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthParentPage()), (_) => false);
     }
   }
@@ -537,9 +552,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         borderRadius: BorderRadius.circular(20),
         child: Stack(fit: StackFit.expand, children: [
           banner['image_url'] != null
-              ? Image.network(ApiClient.fixImageUrl(banner['image_url'].toString()),
+              ? CachedNetworkImage(
+                  imageUrl: ApiClient.fixImageUrl(banner['image_url'].toString()) ?? '',
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _bannerGradient())
+                  placeholder: (_, __) => _bannerGradient(),
+                  errorWidget: (_, __, ___) => _bannerGradient())
               : _bannerGradient(),
           if (banner['title'] != null)
             Positioned(bottom: 0, left: 0, right: 0,
@@ -613,10 +630,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             ]))),
           SizedBox(
             width: 140, height: 190,
-            child: Image.network(
-              'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=300&h=400&fit=crop&crop=top',
+            child: CachedNetworkImage(
+              imageUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=300&h=400&fit=crop&crop=top',
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
+              placeholder: (_, __) => Container(color: const Color(0xFF1E293B)),
+              errorWidget: (_, __, ___) => Container(
                 color: const Color(0xFF1E293B),
                 child: Icon(Icons.person_outline, size: 48,
                     color: Colors.white.withValues(alpha: 0.3))))),
@@ -725,10 +743,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 6, offset: const Offset(0, 2))]),
             child: cat.imageUrl != null && cat.imageUrl!.isNotEmpty
-                ? ClipOval(child: Image.network(
-                    ApiClient.fixImageUrl(cat.imageUrl!),
+                ? ClipOval(child: CachedNetworkImage(
+                    imageUrl: ApiClient.fixImageUrl(cat.imageUrl) ?? '',
                     width: 62, height: 62, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
+                    placeholder: (_, __) => const SizedBox.shrink(),
+                    errorWidget: (_, __, ___) => Icon(
                         _catIcons[cat.slug] ?? Icons.category_outlined,
                         size: 26, color: _slate)))
                 : Icon(_catIcons[cat.slug] ?? Icons.category_outlined,
@@ -868,9 +887,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             child: Stack(fit: StackFit.expand, children: [
               // Background image if configured
               if (hasImage)
-                Image.network(ApiClient.fixImageUrl(imageUrl),
+                CachedNetworkImage(
+                    imageUrl: ApiClient.fixImageUrl(imageUrl) ?? '',
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                    placeholder: (_, __) => const SizedBox.shrink(),
+                    errorWidget: (_, __, ___) => const SizedBox.shrink()),
               // Dark overlay
               Container(
                 decoration: BoxDecoration(
@@ -1035,9 +1056,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               child: p.primaryImage != null
-                  ? Image.network(p.primaryImage!,
+                  ? CachedNetworkImage(
+                      imageUrl: p.primaryImage!,
                       height: 130, width: 155, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _imgPlaceholder())
+                      placeholder: (_, __) => _imgPlaceholder(),
+                      errorWidget: (_, __, ___) => _imgPlaceholder())
                   : _imgPlaceholder()),
             if (discount > 0)
               Positioned(top: 8, left: 8,
@@ -1155,9 +1178,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _border)),
               child: brand.logoUrl != null && brand.logoUrl!.isNotEmpty
-                  ? Image.network(ApiClient.fixImageUrl(brand.logoUrl!),
+                  ? CachedNetworkImage(
+                      imageUrl: ApiClient.fixImageUrl(brand.logoUrl) ?? '',
                       height: 28, fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => _brandText(brand.name))
+                      placeholder: (_, __) => const SizedBox.shrink(),
+                      errorWidget: (_, __, ___) => _brandText(brand.name))
                   : Center(child: _brandText(brand.name))));
         }),
       const SizedBox(height: 8),
@@ -1252,10 +1277,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             child: Stack(fit: StackFit.expand, children: [
               // Background: network image OR decorative circles
               if (hasImage)
-                Image.network(
-                  ApiClient.fixImageUrl(imageUrl),
+                CachedNetworkImage(
+                  imageUrl: ApiClient.fixImageUrl(imageUrl) ?? '',
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  placeholder: (_, __) => const SizedBox.shrink(),
+                  errorWidget: (_, __, ___) => const SizedBox.shrink(),
                 ),
               // Dark overlay (heavier when image is present so text stays legible)
               Container(
@@ -1442,10 +1468,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           child: Stack(fit: StackFit.expand, children: [
             // Background: network image OR gradient
             if (col.imageUrl != null && col.imageUrl!.isNotEmpty)
-              Image.network(
-                ApiClient.fixImageUrl(col.imageUrl!),
+              CachedNetworkImage(
+                imageUrl: ApiClient.fixImageUrl(col.imageUrl) ?? '',
                 fit: BoxFit.cover,
-                errorBuilder: (ctx, err, st) => Container(
+                placeholder: (_, __) => const SizedBox.shrink(),
+                errorWidget: (ctx, err, st) => Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: gradColors,
@@ -1660,29 +1687,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     );
   }
 
-  // ── DOWNLOAD APP ──────────────────────────────────────────────
-
-
-  Widget _appStoreBtn(IconData icon, String label, String url) =>
-    GestureDetector(
-      onTap: () => _launchUrl(url),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15))),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: Colors.white, size: 22),
-          const SizedBox(width: 8),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('GET IT ON', style: TextStyle(color: Colors.white60,
-                fontSize: 8, letterSpacing: 1)),
-            Text(label, style: const TextStyle(color: Colors.white,
-                fontSize: 13, fontWeight: FontWeight.w700)),
-          ]),
-        ])));
-
   // ── URL launcher helper ────────────────────────────────────────
   Future<void> _launchUrl(String url) async {
     if (url.isEmpty) return;
@@ -1838,10 +1842,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 } else if (label == 'Settings') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
                 } else if (label == 'Coupons') {
-                  showModalBottomSheet(context: context,
-                    backgroundColor: Colors.white, isScrollControlled: true,
-                    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-                    builder: (_) => _CouponsDrawerSheet());
+                  showModalBottomSheet(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    isScrollControlled: true,
+                    builder: (_) => DraggableScrollableSheet(
+                      initialChildSize: 0.6,
+                      maxChildSize: 0.9,
+                      minChildSize: 0.3,
+                      builder: (_, controller) => ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                        child: ColoredBox(
+                          color: Colors.white,
+                          child: _CouponsDrawerSheet(scrollController: controller),
+                        ),
+                      ),
+                    ),
+                  );
                 } else if (label == 'Help & Support') {
                   _showHelpSheet(context);
                 }
@@ -1870,9 +1887,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           const Text('Help & Support', style: TextStyle(fontSize: 17,
               fontWeight: FontWeight.bold, color: _ink)),
           const SizedBox(height: 16),
-          _helpTile(Icons.email_outlined, 'Email Us', 'support@savaan.com'),
-          _helpTile(Icons.phone_outlined, 'Call Us', '+91 9999999999'),
-          _helpTile(Icons.chat_outlined, 'Live Chat', 'Available 9 AM – 9 PM'),
+          _helpTile(Icons.email_outlined, 'Email Us', 'customer@savaan.in'),
+          _helpTile(Icons.phone_outlined, 'Call Us', '+91 91105 81825'),
+          _helpTile(Icons.chat_outlined, 'Live Chat', 'Coming Soon'),
         ])));
   }
 
@@ -2048,6 +2065,8 @@ class _AutoScrollCarouselState extends State<_AutoScrollCarousel> {
 
 // ── Coupons sheet — fetches live coupons from API ─────────────────────────────
 class _CouponsDrawerSheet extends StatefulWidget {
+  final ScrollController? scrollController;
+  const _CouponsDrawerSheet({this.scrollController});
   @override
   State<_CouponsDrawerSheet> createState() => _CouponsDrawerSheetState();
 }
@@ -2102,104 +2121,135 @@ class _CouponsDrawerSheetState extends State<_CouponsDrawerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 36, height: 4,
-            decoration: BoxDecoration(color: _border,
-                borderRadius: BorderRadius.circular(2))),
-        const SizedBox(height: 16),
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: Text('Available Coupons',
-              style: TextStyle(fontSize: 18,
-                  fontWeight: FontWeight.bold, color: _ink)),
+    final headerSliver = [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Center(child: Container(width: 36, height: 4,
+                decoration: BoxDecoration(color: _border,
+                    borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            const Text('Available Coupons',
+                style: TextStyle(fontSize: 18,
+                    fontWeight: FontWeight.bold, color: _ink)),
+            const SizedBox(height: 16),
+          ]),
         ),
-        const SizedBox(height: 16),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: CircularProgressIndicator(color: _teal, strokeWidth: 2),
-          )
-        else if (_coupons.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Text('No active coupons right now.\nCheck back soon!',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: _slate, fontSize: 14)),
-          )
-        else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _coupons.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) {
-              final c        = _coupons[i];
-              final code     = c['code']?.toString() ?? '';
-              final type     = c['discount_type']?.toString() ?? 'flat';
-              final value    = double.tryParse(
-                  c['discount_value']?.toString() ?? '0') ?? 0;
-              final minOrder = double.tryParse(
-                  c['min_order_value']?.toString() ?? '0') ?? 0;
-              final label    = type == 'percent'
-                  ? '${value.toInt()}% OFF'
-                  : '₹${value.toInt()} OFF';
+      ),
+    ];
 
-              return Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_teal.withValues(alpha: 0.04),
-                             _green.withValues(alpha: 0.02)],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _teal.withValues(alpha: 0.25)),
-                ),
-                child: Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [_teal, _green]),
-                      borderRadius: BorderRadius.circular(8)),
-                    child: Text(label,
-                        style: const TextStyle(color: Colors.white,
-                            fontWeight: FontWeight.bold, fontSize: 12)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(code,
-                        style: const TextStyle(fontSize: 14,
-                            fontWeight: FontWeight.bold, color: _ink)),
-                    if (minOrder > 0)
-                      Text('Min. order ₹${minOrder.toInt()}',
-                          style: TextStyle(fontSize: 11, color: _slate)),
-                    if (c['description'] != null &&
-                        c['description'].toString().isNotEmpty)
-                      Text(c['description'].toString(),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: _slate)),
-                  ])),
-                  GestureDetector(
-                    onTap: () => _copy(code),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _surface,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _border)),
-                      child: const Text('COPY',
-                          style: TextStyle(fontSize: 11,
-                              fontWeight: FontWeight.w700, color: _slate)),
-                    ),
-                  ),
-                ]),
-              );
-            },
+    if (_loading) {
+      return CustomScrollView(
+        controller: widget.scrollController,
+        slivers: [
+          ...headerSliver,
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator(color: _teal, strokeWidth: 2)),
+            ),
           ),
+        ],
+      );
+    }
+    if (_coupons.isEmpty) {
+      return CustomScrollView(
+        controller: widget.scrollController,
+        slivers: [
+          ...headerSliver,
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: Text('No active coupons right now.\nCheck back soon!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _slate, fontSize: 14))),
+            ),
+          ),
+        ],
+      );
+    }
+    return CustomScrollView(
+      controller: widget.scrollController,
+      slivers: [
+        ...headerSliver,
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (_, i) {
+                if (i.isOdd) return const SizedBox(height: 10);
+                return _buildCard(_coupons[i ~/ 2]);
+              },
+              childCount: _coupons.length * 2 - 1,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard(Map<String, dynamic> c) {
+    final code     = c['code']?.toString() ?? '';
+    final type     = c['discount_type']?.toString() ?? 'flat';
+    final value    = double.tryParse(
+        c['discount_value']?.toString() ?? '0') ?? 0;
+    final minOrder = double.tryParse(
+        c['min_order_value']?.toString() ?? '0') ?? 0;
+    final label    = type == 'percent'
+        ? '${value.toInt()}% OFF'
+        : '₹${value.toInt()} OFF';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_teal.withValues(alpha: 0.04),
+                   _green.withValues(alpha: 0.02)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _teal.withValues(alpha: 0.25)),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [_teal, _green]),
+            borderRadius: BorderRadius.circular(8)),
+          child: Text(label,
+              style: const TextStyle(color: Colors.white,
+                  fontWeight: FontWeight.bold, fontSize: 12)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(code,
+              style: const TextStyle(fontSize: 14,
+                  fontWeight: FontWeight.bold, color: _ink)),
+          if (minOrder > 0)
+            Text('Min. order ₹${minOrder.toInt()}',
+                style: TextStyle(fontSize: 11, color: _slate)),
+          if (c['description'] != null &&
+              c['description'].toString().isNotEmpty)
+            Text(c['description'].toString(),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: _slate)),
+        ])),
+        GestureDetector(
+          onTap: () => _copy(code),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _border)),
+            child: const Text('COPY',
+                style: TextStyle(fontSize: 11,
+                    fontWeight: FontWeight.w700, color: _slate)),
+          ),
+        ),
       ]),
     );
   }
 }
+

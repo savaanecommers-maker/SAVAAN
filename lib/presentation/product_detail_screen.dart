@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/api_client.dart';
@@ -184,7 +185,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     // Enforce variant selection for variant products
     if (_product!.hasVariants && _selectedVariant == null) {
       setState(() => _variantRequired = true);
-      _showSnackBar('Please select a size first', Colors.orange);
+      final hasSizes = _product!.variants.any((v) => v.size != null && v.size!.isNotEmpty);
+      final hasColors = _product!.variants.any((v) => v.color != null && v.color!.isNotEmpty);
+      String msg = 'Please select ';
+      if (hasSizes && hasColors) {
+        msg += 'color and size';
+      } else if (hasSizes) {
+        msg += 'a size';
+      } else {
+        msg += 'a color';
+      }
+      msg += ' first';
+      _showSnackBar(msg, Colors.orange);
       return;
     }
 
@@ -208,10 +220,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<void> _buyNow(ProductModel p) async {
-    // Add to cart first, then go straight to checkout
-    await _addToCart();
-    if (!mounted) return;
+    // Capture context-dependent objects before any await
+    final cart = context.read<CartProvider>();
+    final nav  = Navigator.of(context);
+    // Do NOT add to cart — Buy Now goes directly to checkout without touching cart
     final userId = await ApiClient.getTokenPayload().then((p) => p?['id'] as String? ?? '');
+    if (!mounted) return;
     // Build a single-item cart for checkout
     final cartItem = CartItemModel(
       id:        'buynow_${widget.productId}_${_selectedVariant?.id ?? ""}',
@@ -223,12 +237,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       variant:   _selectedVariant,
     );
     // Use CartProvider shipping settings so admin-configurable free-shipping threshold is respected
-    final cart        = context.read<CartProvider>();
     // Use variant price override if set, else product effective price
     final unitPrice   = _selectedVariant?.priceOverride ?? p.effectivePrice;
     final subtotal    = unitPrice * _quantity;
     final shippingAmt = subtotal >= cart.freeShippingAbove ? 0.0 : cart.shippingCharge;
-    Navigator.push(context,
+    nav.push(
         MaterialPageRoute(builder: (_) => CheckoutScreen(
           cartItems: [cartItem],
           subtotal:  subtotal,
@@ -238,6 +251,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   void _showSnackBar(String msg, Color color) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg, style: const TextStyle(color: Colors.white)),
       backgroundColor: color,
@@ -289,9 +303,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         width: double.infinity,
         color: _surface,
         child: images.isNotEmpty
-            ? Image.network(images[_selectedImageIndex],
+            ? CachedNetworkImage(imageUrl: images[_selectedImageIndex],
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _imagePlaceholder())
+            placeholder: (_, __) => _imagePlaceholder(),
+            errorWidget: (_, __, ___) => _imagePlaceholder())
             : _imagePlaceholder(),
       ),
 
@@ -318,9 +333,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(9),
-                  child: Image.network(images[i],
+                  child: CachedNetworkImage(imageUrl: images[i],
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
+                      placeholder: (_, __) => const SizedBox.shrink(),
+                      errorWidget: (_, __, ___) =>
                           Icon(Icons.image_outlined, color: _border)),
                 ),
               ),
@@ -1086,7 +1102,7 @@ class _StrikethroughPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawLine(
       const Offset(0, 0), Offset(size.width, size.height),
-      Paint()..color = Colors.white.withAlpha(160)..strokeWidth = 2,
+      Paint()..color = Colors.white.withValues(alpha: 0.627)..strokeWidth = 2,
     );
   }
   @override
@@ -1100,7 +1116,7 @@ class _SizeStrikethroughPainter extends CustomPainter {
     canvas.drawLine(
       Offset(0, size.height * 0.15),
       Offset(size.width, size.height * 0.85),
-      Paint()..color = Colors.redAccent.withAlpha(100)..strokeWidth = 1.5,
+      Paint()..color = Colors.redAccent.withValues(alpha: 0.392)..strokeWidth = 1.5,
     );
   }
   @override

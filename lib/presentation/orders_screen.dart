@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/order_model.dart';
@@ -23,7 +24,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<OrderProvider>().loadOrders();
+      context.read<OrderProvider>().loadOrders(force: true);
     });
   }
 
@@ -142,9 +143,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: item.productImage != null
-                          ? Image.network(item.productImage!,
+                          ? CachedNetworkImage(imageUrl: item.productImage!,
                               width: 44, height: 44, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
+                              placeholder: (_, url) => Container(width: 44, height: 44, color: _border),
+                              errorWidget: (_, url, err) =>
                                   Container(width: 44, height: 44, color: _border))
                           : Container(width: 44, height: 44, color: _border,
                               child: Icon(Icons.image_outlined, size: 20, color: _slate)),
@@ -191,7 +193,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildTrackingBar(OrderModel order) {
-    final steps = ['Placed', 'Confirmed', 'Shipped', 'Out for\nDelivery', 'Delivered'];
+    final steps = ['Placed', 'Confirmed', 'Packed', 'Shipped', 'Out for\nDelivery', 'Delivered'];
     final currentStep = order.status.trackingStep;
 
     return Container(

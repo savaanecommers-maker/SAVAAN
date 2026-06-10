@@ -1,3 +1,5 @@
+import '../data/api_client.dart';
+
 class OrderItemModel {
   final String id;
   final String orderId;
@@ -29,7 +31,8 @@ class OrderItemModel {
       orderId:      json['order_id']?.toString() ?? '',
       productId:    json['product_id']?.toString(),
       productName:  json['product_name']?.toString() ?? json['name']?.toString() ?? '',
-      productImage: json['product_image']?.toString() ?? json['image_url']?.toString(),
+      productImage: ApiClient.fixImageUrl(
+          json['product_image']?.toString() ?? json['image_url']?.toString()),
       price:        double.tryParse(json['price']?.toString() ?? '0') ?? 0,
       quantity:     int.tryParse(json['quantity']?.toString() ?? '1') ?? 1,
       variantColor: json['variant_color']?.toString(),

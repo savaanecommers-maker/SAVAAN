@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../data/product_service.dart';
 import '../models/product_model.dart';
@@ -648,9 +649,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
               child: product.primaryImage != null
-                  ? Image.network(product.primaryImage!,
+                  ? CachedNetworkImage(imageUrl: product.primaryImage!,
                   height: 130, width: double.infinity, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _imgPlaceholder(130))
+                  placeholder: (_, __) => _imgPlaceholder(130),
+                  errorWidget: (_, __, ___) => _imgPlaceholder(130))
                   : _imgPlaceholder(130),
             ),
             if (discount > 0)
@@ -765,9 +767,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: product.primaryImage != null
-                  ? Image.network(product.primaryImage!,
+                  ? CachedNetworkImage(imageUrl: product.primaryImage!,
                   width: 90, height: 90, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _imgPlaceholder(90, width: 90))
+                  placeholder: (_, __) => _imgPlaceholder(90, width: 90),
+                  errorWidget: (_, __, ___) => _imgPlaceholder(90, width: 90))
                   : _imgPlaceholder(90, width: 90),
             ),
             if (discount > 0)

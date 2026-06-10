@@ -17,7 +17,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   static const Color _ink     = Color(0xFF0F172A);
   static const Color _teal    = Color(0xFF0D9488);
-  static const Color _green   = Color(0xFF10B981);
   static const Color _slate   = Color(0xFF64748B);
   static const Color _border  = Color(0xFFE2E8F0);
   static const Color _surface = Color(0xFFF8FAFC);
@@ -32,6 +31,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     setState(() => _isLoading = true);
     try {
       final loggedIn = await ApiClient.isLoggedIn;
+      if (!mounted) return;
       if (!loggedIn) { setState(() => _isLoading = false); return; }
       final res = await ApiClient.get('/api/notifications');
       if (mounted) {

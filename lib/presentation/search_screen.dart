@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../data/product_service.dart';
 import '../models/product_model.dart';
@@ -24,7 +25,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   static const Color _ink     = Color(0xFF0F172A);
   static const Color _teal    = Color(0xFF0D9488);
-  static const Color _green   = Color(0xFF10B981);
   static const Color _slate   = Color(0xFF64748B);
   static const Color _border  = Color(0xFFE2E8F0);
   static const Color _surface = Color(0xFFF8FAFC);
@@ -50,12 +50,12 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _onChanged(String value) {
     _debounce?.cancel();
+    if (value.trim().length < 2) {
+      setState(() { _results = []; _isSearching = false; });
+      return;
+    }
     _debounce = Timer(const Duration(milliseconds: 350), () {
-      if (value.trim().length >= 2) {
-        _search(value.trim());
-      } else if (value.isEmpty) {
-        setState(() { _results = []; _query = ''; });
-      }
+      _search(value.trim());
     });
   }
 
@@ -248,9 +248,10 @@ class _SearchScreenState extends State<SearchScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: product.primaryImage != null
-                ? Image.network(product.primaryImage!,
+                ? CachedNetworkImage(imageUrl: product.primaryImage!,
                     width: 56, height: 56, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imgPlaceholder())
+                    placeholder: (_, __) => _imgPlaceholder(),
+                    errorWidget: (_, __, ___) => _imgPlaceholder())
                 : _imgPlaceholder(),
           ),
           const SizedBox(width: 12),

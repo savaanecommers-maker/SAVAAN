@@ -9,7 +9,6 @@ class HelpSupportScreen extends StatelessWidget {
 
   static const Color _ink     = Color(0xFF0F172A);
   static const Color _teal    = Color(0xFF0D9488);
-  static const Color _green   = Color(0xFF10B981);
   static const Color _slate   = Color(0xFF64748B);
   static const Color _border  = Color(0xFFE2E8F0);
   static const Color _surface = Color(0xFFF8FAFC);

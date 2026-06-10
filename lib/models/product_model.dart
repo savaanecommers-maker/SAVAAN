@@ -73,21 +73,21 @@ class ProductModel {
       if (json['images'] is List) {
         imageList = (json['images'] as List)
             .map((e) => ApiClient.fixImageUrl(e.toString()))
-            .where((u) => u.isNotEmpty)
+            .whereType<String>()
             .toList();
       }
     }
     // Fallback: if images JSONB array is empty, use the image_url column
     if (imageList.isEmpty && json['image_url'] != null) {
-      final raw = json['image_url'].toString().trim();
-      if (raw.isNotEmpty) imageList = [ApiClient.fixImageUrl(raw)];
+      final fixed = ApiClient.fixImageUrl(json['image_url'].toString().trim());
+      if (fixed != null) imageList = [fixed];
     }
 
     // Handle variants if included (backend returns key 'variants')
     List<ProductVariant> variantList = [];
     final rawVariants = json['variants'] ?? json['product_variants'];
     if (rawVariants != null && rawVariants is List) {
-      variantList = (rawVariants as List)
+      variantList = rawVariants
           .map((v) => ProductVariant.fromJson(v as Map<String, dynamic>))
           .toList();
     }
@@ -205,27 +205,31 @@ class ProductModel {
     bool? isFeatured,
     bool? isFlashDeal,
     bool? hasVariants,
+    double? flashDealPrice,
+    DateTime? flashDealExpiry,
     DateTime? createdAt,
     List<ProductVariant>? variants,
   }) {
     return ProductModel(
-      id:            id ?? this.id,
-      name:          name ?? this.name,
-      description:   description ?? this.description,
-      price:         price ?? this.price,
-      originalPrice: originalPrice ?? this.originalPrice,
-      categoryId:    categoryId ?? this.categoryId,
-      categoryName:  categoryName ?? this.categoryName,
-      brand:         brand ?? this.brand,
-      rating:        rating ?? this.rating,
-      reviewCount:   reviewCount ?? this.reviewCount,
-      stock:         stock ?? this.stock,
-      images:        images ?? this.images,
-      isFeatured:    isFeatured ?? this.isFeatured,
-      isFlashDeal:   isFlashDeal ?? this.isFlashDeal,
-      hasVariants:   hasVariants ?? this.hasVariants,
-      createdAt:     createdAt ?? this.createdAt,
-      variants:      variants ?? this.variants,
+      id:              id ?? this.id,
+      name:            name ?? this.name,
+      description:     description ?? this.description,
+      price:           price ?? this.price,
+      originalPrice:   originalPrice ?? this.originalPrice,
+      categoryId:      categoryId ?? this.categoryId,
+      categoryName:    categoryName ?? this.categoryName,
+      brand:           brand ?? this.brand,
+      rating:          rating ?? this.rating,
+      reviewCount:     reviewCount ?? this.reviewCount,
+      stock:           stock ?? this.stock,
+      images:          images ?? this.images,
+      isFeatured:      isFeatured ?? this.isFeatured,
+      isFlashDeal:     isFlashDeal ?? this.isFlashDeal,
+      hasVariants:     hasVariants ?? this.hasVariants,
+      flashDealPrice:  flashDealPrice ?? this.flashDealPrice,
+      flashDealExpiry: flashDealExpiry ?? this.flashDealExpiry,
+      createdAt:       createdAt ?? this.createdAt,
+      variants:        variants ?? this.variants,
     );
   }
 

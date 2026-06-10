@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -147,7 +148,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildCartItem(item, CartProvider cart) {
+  Widget _buildCartItem(dynamic item, CartProvider cart) {
     return Dismissible(
       key: Key(item.id),
       direction: DismissDirection.endToStart,
@@ -179,9 +180,10 @@ class _CartScreenState extends State<CartScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: item.displayImage != null
-                ? Image.network(item.displayImage!,
+                ? CachedNetworkImage(imageUrl: item.displayImage!,
                     width: 80, height: 80, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imgPlaceholder())
+                    placeholder: (_, __) => _imgPlaceholder(),
+                    errorWidget: (_, __, ___) => _imgPlaceholder())
                 : _imgPlaceholder(),
           ),
           const SizedBox(width: 12),
@@ -216,8 +218,19 @@ class _CartScreenState extends State<CartScreen> {
                               style: const TextStyle(fontSize: 13,
                                   fontWeight: FontWeight.bold, color: _ink)),
                         )),
-                    _qtyBtn(Icons.add, () =>
-                        cart.updateQuantity(item.id, item.quantity + 1)),
+                    _qtyBtn(Icons.add, () {
+                      final maxStock = item.variant?.stock ?? item.product?.stock ?? 999;
+                      if (item.quantity >= maxStock) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Only $maxStock units available'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        return;
+                      }
+                      context.read<CartProvider>().updateQuantity(item.id, item.quantity + 1);
+                    }),
                   ]),
                 ),
               ]),
@@ -425,7 +438,7 @@ class _CartScreenState extends State<CartScreen> {
         if (cart.shipping > 0) ...[
           const SizedBox(height: 4),
           Builder(builder: (ctx) {
-            final freeAbove = ctx.read<SettingsProvider>().freeShippingAbove;
+            final freeAbove = ctx.watch<SettingsProvider>().freeShippingAbove;
             final needed = freeAbove - cart.subtotal;
             return Text(
               'Add ${_fmt(needed > 0 ? needed : 0)} more for free shipping',

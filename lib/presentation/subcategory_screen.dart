@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../data/category_service.dart';
@@ -27,7 +28,6 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
   static const Color _teal    = Color(0xFF0D9488);
   static const Color _slate   = Color(0xFF64748B);
   static const Color _border  = Color(0xFFE2E8F0);
-  static const Color _surface = Color(0xFFF8FAFC);
 
   @override
   void initState() {
@@ -143,10 +143,11 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
   Widget _heroBackground() {
     final url = widget.parent.imageUrl;
     if (url != null && url.isNotEmpty) {
-      return Image.network(
-        ApiClient.fixImageUrl(url),
+      return CachedNetworkImage(
+        imageUrl: ApiClient.fixImageUrl(url) ?? '',
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _gradientBox(),
+        placeholder: (_, __) => _gradientBox(),
+        errorWidget: (_, __, ___) => _gradientBox(),
       );
     }
     return _gradientBox();
@@ -357,20 +358,20 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
   /// Returns a network image for [sub], trying:
   ///  1. DB imageUrl  2. curated slug map  3. icon placeholder
   Widget _buildSubImage(CategoryModel sub) {
-    final dbUrl   = sub.imageUrl != null && sub.imageUrl!.isNotEmpty
-        ? ApiClient.fixImageUrl(sub.imageUrl!) : null;
+    final dbUrl   = ApiClient.fixImageUrl(sub.imageUrl);
     final mapUrl  = _slugImages[sub.slug];
     final url     = dbUrl ?? mapUrl;
 
     if (url != null) {
-      return Image.network(
-        url,
+      return CachedNetworkImage(
+        imageUrl: url,
         width: double.infinity,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => mapUrl != null && url != mapUrl
-            // DB url failed → try map url
-            ? Image.network(mapUrl, width: double.infinity, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _iconArea(sub))
+        placeholder: (_, __) => const SizedBox.shrink(),
+        errorWidget: (_, __, ___) => mapUrl != null && url != mapUrl
+            ? CachedNetworkImage(imageUrl: mapUrl, width: double.infinity, fit: BoxFit.cover,
+                placeholder: (_, __) => const SizedBox.shrink(),
+                errorWidget: (_, __, ___) => _iconArea(sub))
             : _iconArea(sub),
       );
     }

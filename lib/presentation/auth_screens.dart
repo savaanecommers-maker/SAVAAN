@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -34,6 +35,8 @@ class _AuthParentPageState extends State<AuthParentPage>
   bool   _obscurePassword = true;
   bool   _otpSent         = false;
   String _otpPhone        = '';
+  int    _resendSeconds   = 0;
+  Timer? _resendTimer;
 
   late AnimationController _fadeController;
   late Animation<double>   _fadeAnimation;
@@ -56,12 +59,26 @@ class _AuthParentPageState extends State<AuthParentPage>
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _fadeController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
     super.dispose();
+  }
+
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() => _resendSeconds = 60);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_resendSeconds <= 1) {
+        t.cancel();
+        if (mounted) setState(() => _resendSeconds = 0);
+      } else {
+        if (mounted) setState(() => _resendSeconds--);
+      }
+    });
   }
 
   void _switchView(String view, {String otpMode = 'login'}) {
@@ -90,9 +107,8 @@ class _AuthParentPageState extends State<AuthParentPage>
 
   // ── Google sign-in: mode-aware ────────────────────────────────
   // signInWithGoogle() returns:
-  //   String → explicit error (backend rejected, Firebase error, etc.)
-  //   null   → EITHER user cancelled picker (no tokens saved)
-  //            OR success (tokens saved by _exchangeFirebaseToken)
+  //   String → explicit error (backend rejected token, network error, etc.)
+  //   null   → EITHER user cancelled picker OR success (tokens saved)
   // We distinguish by checking isLoggedIn AFTER the call.
   Future<void> _handleGoogleSignIn() async {
     final mode = (_currentView == 'signup' || _otpMode == 'signup')
@@ -105,7 +121,7 @@ class _AuthParentPageState extends State<AuthParentPage>
     setState(() => _isLoading = false);
 
     if (error != null) {
-      // Explicit error from Firebase or backend
+      // Explicit error from backend
       _showSnackBar(error, Colors.redAccent);
       return;
     }
@@ -118,9 +134,9 @@ class _AuthParentPageState extends State<AuthParentPage>
         mode == 'signup' ? 'Welcome to Savaan!' : 'Welcome back!', _teal);
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) {
+      final nav = Navigator.of(context);
       await _initProviders();
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
     }
   }
 
@@ -134,12 +150,28 @@ class _AuthParentPageState extends State<AuthParentPage>
     setState(() => _isLoading = true);
     final fullPhone = '+91$phone';
     final error = await _authService.sendPhoneOtp(phone: fullPhone);
+    if (!mounted) return;
     setState(() => _isLoading = false);
     if (error != null) {
       _showSnackBar(error, Colors.redAccent);
     } else {
       setState(() { _otpSent = true; _otpPhone = fullPhone; });
+      _startResendTimer();
       _showSnackBar('OTP sent to $fullPhone', _teal);
+    }
+  }
+
+  Future<void> _handleResendOtp() async {
+    setState(() => _isLoading = true);
+    final error = await _authService.sendPhoneOtp(phone: _otpPhone);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (error != null) {
+      _showSnackBar(error, Colors.redAccent);
+    } else {
+      _otpController.clear();
+      _startResendTimer();
+      _showSnackBar('OTP resent to $_otpPhone', _teal);
     }
   }
 
@@ -161,9 +193,9 @@ class _AuthParentPageState extends State<AuthParentPage>
           _otpMode == 'signup' ? 'Welcome to Savaan!' : 'Welcome back!', _teal);
       await Future.delayed(const Duration(milliseconds: 800));
       if (mounted) {
+        final nav = Navigator.of(context);
         await _initProviders();
-        Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+        nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
       }
     }
   }
@@ -183,9 +215,9 @@ class _AuthParentPageState extends State<AuthParentPage>
         _showSnackBar('Welcome back!', _teal);
         await Future.delayed(const Duration(milliseconds: 800));
         if (mounted) {
+          final nav = Navigator.of(context);
           await _initProviders();
-          Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+          nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
         }
       }
     } else if (_currentView == 'signup') {
@@ -197,9 +229,9 @@ class _AuthParentPageState extends State<AuthParentPage>
         _showSnackBar('Welcome to Savaan!', _teal);
         await Future.delayed(const Duration(milliseconds: 800));
         if (mounted) {
+          final nav = Navigator.of(context);
           await _initProviders();
-          Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+          nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
         }
       }
     } else if (_currentView == 'forgot') {
@@ -210,7 +242,7 @@ class _AuthParentPageState extends State<AuthParentPage>
       }
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
     if (error != null) _showSnackBar(error, Colors.redAccent);
   }
 
@@ -589,14 +621,16 @@ class _AuthParentPageState extends State<AuthParentPage>
               onTap: _isLoading ? null : _handleVerifyOtp,
             ),
             const SizedBox(height: 12),
-            TextButton(
-              onPressed: _isLoading ? null : () => setState(() {
-                _otpSent = false;
-                _otpController.clear();
-              }),
-              child: const Text('Resend OTP',
-                  style: TextStyle(color: _teal)),
-            ),
+            _resendSeconds > 0
+              ? Text(
+                  'Resend OTP in ${_resendSeconds}s',
+                  style: const TextStyle(color: _textGrey, fontSize: 13),
+                )
+              : TextButton(
+                  onPressed: _isLoading ? null : _handleResendOtp,
+                  child: const Text('Resend OTP',
+                      style: TextStyle(color: _teal, fontWeight: FontWeight.w600)),
+                ),
           ] else
             _buildGradientButton(
               label: 'SEND OTP',

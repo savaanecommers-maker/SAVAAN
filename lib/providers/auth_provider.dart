@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import '../data/auth_service.dart';
 import '../data/user_service.dart';
 import '../data/api_client.dart';
@@ -37,16 +36,6 @@ class AuthProvider extends ChangeNotifier {
     _hasLoaded = true;
     _isLoading = false;
     notifyListeners();
-    // Fire-and-forget: FCM token fetch can take seconds, don't block loadUser
-    _saveFCMToken();
-  }
-
-  Future<void> _saveFCMToken() async {
-    try {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token == null) return;
-      await ApiClient.put('/api/users/me', {'fcm_token': token});
-    } catch (_) {}
   }
 
   Future<String?> updateProfile({String? fullName, String? phone}) async {

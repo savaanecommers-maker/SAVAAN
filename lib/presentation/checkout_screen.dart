@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../data/api_client.dart';
 import '../models/cart_item_model.dart';
@@ -79,7 +80,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             final list = res.data!['_list'] as List? ?? [];
             _addresses = List<Map<String, dynamic>>.from(list);
             if (_addresses.isNotEmpty) {
-              _selectedAddressId = _addresses.first['id']?.toString();
+              final defaultAddr = _addresses.firstWhere(
+                (a) => a['is_default'] == true,
+                orElse: () => _addresses.first,
+              );
+              _selectedAddressId = defaultAddr['id']?.toString();
             }
           }
           _isLoadingAddresses = false;
@@ -484,9 +489,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: item.displayImage != null
-                  ? Image.network(item.displayImage!,
+                  ? CachedNetworkImage(imageUrl: item.displayImage!,
                       width: 48, height: 48, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      placeholder: (_, __) => Container(width: 48, height: 48, color: _border),
+                      errorWidget: (_, __, ___) => Container(
                           width: 48, height: 48, color: _border))
                   : Container(width: 48, height: 48, color: _border),
             ),
@@ -498,7 +504,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       fontWeight: FontWeight.w500, color: _ink)),
             ),
             const SizedBox(width: 8),
-            Text('x${item.quantity}  ${_fmt((item.product?.price ?? 0) * item.quantity)}',
+            Text('x${item.quantity}  ${_fmt(item.unitPrice * item.quantity)}',
                 style: TextStyle(fontSize: 12, color: _slate)),
           ]),
         )),

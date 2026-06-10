@@ -82,15 +82,22 @@ class CartProvider extends ChangeNotifier {
   Future<void> updateQuantity(String cartItemId, int quantity) async {
     // Optimistic UI — update locally first
     final idx = _items.indexWhere((i) => i.id == cartItemId);
-    if (idx != -1) {
-      if (quantity <= 0) {
-        _items.removeAt(idx);
-      } else {
-        _items[idx] = _items[idx].copyWith(quantity: quantity);
-      }
-      notifyListeners();
+    if (idx < 0) return;
+    final oldItem = _items[idx]; // save for rollback
+    if (quantity <= 0) {
+      return removeFromCart(cartItemId);
     }
-    await _cartService.updateQuantity(cartItemId, quantity);
+    _items[idx] = _items[idx].copyWith(quantity: quantity);
+    notifyListeners();
+    final error = await _cartService.updateQuantity(cartItemId, quantity);
+    if (error != null) {
+      // API failed — rollback to old quantity
+      final currentIdx = _items.indexWhere((i) => i.id == cartItemId);
+      if (currentIdx >= 0) {
+        _items[currentIdx] = oldItem;
+        notifyListeners();
+      }
+    }
   }
 
   // ── Remove item ───────────────────────────────────────────────
