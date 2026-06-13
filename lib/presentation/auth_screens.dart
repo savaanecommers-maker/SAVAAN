@@ -301,9 +301,9 @@ class _AuthParentPageState extends State<AuthParentPage>
             const SizedBox(height: 16),
 
             // Logo
-            Image.asset('assets/logo.png', height: 90,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 90, width: 90,
+            Image.asset('assets/logo.png', height: 120,
+                errorBuilder: (_, _, _) => Container(
+                  height: 120, width: 120,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                         colors: [_teal, _green],
@@ -314,7 +314,7 @@ class _AuthParentPageState extends State<AuthParentPage>
                   child: const Icon(Icons.diamond_outlined,
                       size: 44, color: Colors.white),
                 )),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
 
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
@@ -510,9 +510,9 @@ class _AuthParentPageState extends State<AuthParentPage>
           ),
           const SizedBox(height: 16),
 
-          Image.asset('assets/logo.png', height: 80,
-              errorBuilder: (_, __, ___) => Container(
-                height: 80, width: 80,
+          Image.asset('assets/logo.png', height: 110,
+              errorBuilder: (_, _, _) => Container(
+                height: 110, width: 110,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(colors: [_teal, _green]),
                   borderRadius: BorderRadius.circular(20),
@@ -520,7 +520,7 @@ class _AuthParentPageState extends State<AuthParentPage>
                 child: const Icon(Icons.diamond_outlined,
                     size: 40, color: Colors.white),
               )),
-          const SizedBox(height: 8),
+          const SizedBox(height: 3),
           ShaderMask(
             shaderCallback: (bounds) => const LinearGradient(
               colors: [Color(0xFF0D9488), Color(0xFF22C55E)],

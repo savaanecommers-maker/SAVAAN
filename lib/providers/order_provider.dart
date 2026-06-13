@@ -9,22 +9,29 @@ class OrderProvider extends ChangeNotifier {
   List<OrderModel> _orders     = [];
   bool             _isLoading  = false;
   bool             _hasLoaded  = false;
+  String?          _loadError;
 
   // ── Getters ───────────────────────────────────────────────────
   List<OrderModel> get orders    => _orders;
   bool             get isLoading => _isLoading;
   int              get count     => _orders.length;
   bool             get hasLoaded => _hasLoaded;
+  /// Non-null when the last loadOrders() call failed — callers should show an error.
+  String?          get loadError => _loadError;
 
   // ── Load orders ───────────────────────────────────────────────
   Future<void> loadOrders({bool force = false}) async {
     if (_hasLoaded && !force) return;
     _isLoading = true;
+    _loadError = null;
     notifyListeners();
     try {
-      _orders = await _service.getOrders();
-    } catch (_) {
-      _orders = [];
+      final (orders, error) = await _service.getOrders();
+      _orders    = orders;
+      _loadError = error; // null on success, message on failure
+    } catch (e) {
+      _orders    = [];
+      _loadError = 'Unexpected error: $e';
     } finally {
       _hasLoaded = true;
       _isLoading = false;
@@ -80,6 +87,7 @@ class OrderProvider extends ChangeNotifier {
   void clear() {
     _orders    = [];
     _hasLoaded = false;
+    _loadError = null;
     notifyListeners();
   }
 }

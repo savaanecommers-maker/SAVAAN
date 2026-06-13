@@ -6,7 +6,7 @@ class CartService {
     final res = await ApiClient.get('/api/cart');
     if (!res.isSuccess) return [];
     try {
-      final list = res.data!['_list'] as List? ?? [];
+      final list = res.data!['items'] as List? ?? [];
       return list.map((e) => CartItemModel.fromJson(e as Map<String, dynamic>)).toList();
     } catch (_) {
       return [];

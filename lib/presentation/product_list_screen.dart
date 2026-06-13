@@ -51,12 +51,18 @@ class _ProductListScreenState extends State<ProductListScreen> {
   double _maxPrice = 100000;
   Set<String> _selectedBrands = {};
   bool _inStockOnly = false;
+  Set<String> _selectedSizes = {};
+  Set<String> _selectedColors = {};
+  Set<String> _selectedAttributes = {};
 
   // Active filter count
   int get _activeFilters =>
       (_inStockOnly ? 1 : 0) +
-          (_selectedBrands.isNotEmpty ? 1 : 0) +
-          (_priceRange.start > 0 || _priceRange.end < _maxPrice ? 1 : 0);
+      (_selectedBrands.isNotEmpty ? 1 : 0) +
+      (_priceRange.start > 0 || _priceRange.end < _maxPrice ? 1 : 0) +
+      (_selectedSizes.isNotEmpty ? 1 : 0) +
+      (_selectedColors.isNotEmpty ? 1 : 0) +
+      (_selectedAttributes.isNotEmpty ? 1 : 0);
 
   static const Color _ink     = Color(0xFF0F172A);
   static const Color _teal    = Color(0xFF0D9488);
@@ -152,6 +158,31 @@ class _ProductListScreenState extends State<ProductListScreen> {
       list = list.where((p) => p.isInStock).toList();
     }
 
+    // Size filter (from variants)
+    if (_selectedSizes.isNotEmpty) {
+      list = list.where((p) => p.variants.any(
+          (v) => v.size != null && _selectedSizes.contains(v.size))).toList();
+    }
+
+    // Color filter (from variants, fallback to name/description)
+    if (_selectedColors.isNotEmpty) {
+      list = list.where((p) {
+        if (p.variants.any((v) => v.color != null)) {
+          return p.variants.any((v) => v.color != null && _selectedColors.contains(v.color));
+        }
+        final text = '${p.name} ${p.description ?? ''}'.toLowerCase();
+        return _selectedColors.any((c) => text.contains(c.toLowerCase()));
+      }).toList();
+    }
+
+    // Attribute filter (keyword match in name/description)
+    if (_selectedAttributes.isNotEmpty) {
+      list = list.where((p) {
+        final text = '${p.name} ${p.description ?? ''}'.toLowerCase();
+        return _selectedAttributes.any((a) => text.contains(a.toLowerCase()));
+      }).toList();
+    }
+
     // Sort
     switch (_sortBy) {
       case 'price_low':
@@ -174,14 +205,61 @@ class _ProductListScreenState extends State<ProductListScreen> {
     setState(() => _filtered = list);
   }
 
-  List<String> get _allBrands {
-    return _products
-        .where((p) => p.brand != null && p.brand!.isNotEmpty)
-        .map((p) => p.brand!)
-        .toSet()
-        .toList()
-      ..sort();
+  List<String> get _allBrands => _products
+      .where((p) => p.brand != null && p.brand!.isNotEmpty)
+      .map((p) => p.brand!).toSet().toList()..sort();
+
+  List<String> get _allSizes => _products
+      .expand((p) => p.variants
+          .where((v) => v.size != null && v.size!.isNotEmpty)
+          .map((v) => v.size!))
+      .toSet().toList();
+
+  List<String> get _allColors => _products
+      .expand((p) => p.variants
+          .where((v) => v.color != null && v.color!.isNotEmpty)
+          .map((v) => v.color!))
+      .toSet().toList()..sort();
+
+  String get _categorySlug {
+    final n = (widget.category?.name ?? widget.title ?? '').toLowerCase();
+    if (n.contains('fashion') || n.contains('cloth') || n.contains('apparel') ||
+        n.contains('dress') || n.contains('shirt') || n.contains('kurta') ||
+        n.contains('saree') || n.contains('trouser')) { return 'fashion'; }
+    if (n.contains('footwear') || n.contains('shoe') || n.contains('sneaker') ||
+        n.contains('boot') || n.contains('sandal') || n.contains('slipper')) { return 'footwear'; }
+    if (n.contains('watch')) { return 'watches'; }
+    if (n.contains('perfume') || n.contains('fragrance') || n.contains('scent') ||
+        n.contains('deodorant')) { return 'perfumes'; }
+    if (n.contains('electron') || n.contains('gadget') || n.contains('phone') ||
+        n.contains('laptop') || n.contains('earphone') || n.contains('headphone')) { return 'electronics'; }
+    return 'general';
   }
+
+  static const Map<String, Map<String, List<String>>> _categoryAttrs = {
+    'fashion': {
+      'Gender':   ['Men', 'Women', 'Unisex', 'Boys', 'Girls'],
+      'Material': ['Cotton', 'Polyester', 'Silk', 'Linen', 'Denim', 'Leather', 'Wool'],
+    },
+    'footwear': {
+      'Material': ['Leather', 'Canvas', 'Synthetic', 'Rubber', 'Suede'],
+    },
+    'watches': {
+      'Strap Material': ['Leather', 'Metal', 'Rubber', 'Silicone', 'Mesh'],
+      'Dial Shape':     ['Round', 'Square', 'Rectangle', 'Oval'],
+      'Features':       ['Water Resistant', 'Chronograph', 'Automatic', 'Smart', 'Quartz'],
+    },
+    'perfumes': {
+      'Fragrance Family': ['Floral', 'Woody', 'Oriental', 'Fresh', 'Citrus', 'Aquatic', 'Musky'],
+      'Gender':           ['Men', 'Women', 'Unisex'],
+      'Volume':           ['30ml', '50ml', '75ml', '100ml', '200ml'],
+    },
+    'electronics': {
+      'Storage':  ['64GB', '128GB', '256GB', '512GB'],
+      'RAM':      ['4GB', '6GB', '8GB', '12GB', '16GB'],
+      'Features': ['Wireless', 'Bluetooth', 'WiFi', 'Fast Charging', 'USB-C'],
+    },
+  };
 
   void _showSortSheet() {
     final opts = [
@@ -235,10 +313,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   void _showFilterSheet() {
-    // Local copies for the sheet
-    RangeValues tempPrice = _priceRange;
+    RangeValues tempPrice  = _priceRange;
     Set<String> tempBrands = Set.from(_selectedBrands);
-    bool tempStock = _inStockOnly;
+    bool        tempStock  = _inStockOnly;
+    Set<String> tempSizes  = Set.from(_selectedSizes);
+    Set<String> tempColors = Set.from(_selectedColors);
+    Set<String> tempAttrs  = Set.from(_selectedAttributes);
+
+    final catAttrs = _categoryAttrs[_categorySlug] ?? {};
 
     showModalBottomSheet(
       context: context,
@@ -248,12 +330,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setS) => DraggableScrollableSheet(
-          initialChildSize: 0.75,
-          maxChildSize: 0.92,
+          initialChildSize: 0.78,
+          maxChildSize: 0.95,
           minChildSize: 0.5,
           expand: false,
           builder: (_, scrollCtrl) => Column(children: [
-            // Handle + header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Column(children: [
@@ -268,14 +349,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             fontWeight: FontWeight.bold, color: _ink)),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      setS(() {
-                        tempPrice = RangeValues(0, _maxPrice);
-                        tempBrands = {};
-                        tempStock = false;
-                      });
-                    },
-                    child: Text('Reset All',
+                    onTap: () => setS(() {
+                      tempPrice  = RangeValues(0, _maxPrice);
+                      tempBrands = {};
+                      tempStock  = false;
+                      tempSizes  = {};
+                      tempColors = {};
+                      tempAttrs  = {};
+                    }),
+                    child: const Text('Reset All',
                         style: TextStyle(fontSize: 13, color: _teal,
                             fontWeight: FontWeight.w600)),
                   ),
@@ -287,15 +369,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 controller: scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 children: [
-                  // In Stock Toggle
+                  // Availability
                   _filterSection('Availability', child: Row(children: [
-                    Expanded(child: Text('In Stock Only',
-                        style: const TextStyle(fontSize: 14, color: _ink))),
-                    Switch(
-                      value: tempStock,
-                      onChanged: (v) => setS(() => tempStock = v),
-                      activeColor: _teal,
-                    ),
+                    const Expanded(child: Text('In Stock Only',
+                        style: TextStyle(fontSize: 14, color: _ink))),
+                    Switch(value: tempStock,
+                        onChanged: (v) => setS(() => tempStock = v),
+                        activeThumbColor: _teal),
                   ])),
 
                   const SizedBox(height: 20),
@@ -304,60 +384,73 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   _filterSection('Price Range', child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _priceChip('₹${tempPrice.start.toInt()}'),
-                          Text('to', style: TextStyle(color: _slate, fontSize: 13)),
-                          _priceChip('₹${tempPrice.end.toInt()}'),
-                        ],
-                      ),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                        _priceChip('₹${tempPrice.start.toInt()}'),
+                        Text('to', style: TextStyle(color: _slate, fontSize: 13)),
+                        _priceChip('₹${tempPrice.end.toInt()}'),
+                      ]),
                       const SizedBox(height: 8),
                       RangeSlider(
-                        values: tempPrice,
-                        min: 0,
-                        max: _maxPrice,
-                        divisions: 20,
-                        activeColor: _teal,
-                        inactiveColor: _border,
+                        values: tempPrice, min: 0, max: _maxPrice, divisions: 20,
+                        activeColor: _teal, inactiveColor: _border,
                         onChanged: (v) => setS(() => tempPrice = v),
                       ),
                     ],
                   )),
 
+                  // Brand
                   if (_allBrands.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    _filterSection('Brand', child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _allBrands.map((brand) {
-                        final sel = tempBrands.contains(brand);
-                        return GestureDetector(
-                          onTap: () => setS(() {
-                            if (sel) {
-                              tempBrands.remove(brand);
-                            } else {
-                              tempBrands.add(brand);
-                            }
-                          }),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 7),
-                            decoration: BoxDecoration(
-                              color: sel ? _teal.withValues(alpha: 0.1) : Colors.white,
-                              border: Border.all(
-                                  color: sel ? _teal : _border, width: sel ? 1.5 : 1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(brand,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: sel ? _teal : _ink,
-                                  fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
-                                )),
-                          ),
-                        );
-                      }).toList(),
+                    _filterSection('Brand', child: _chipWrap(
+                      items: _allBrands,
+                      selected: tempBrands,
+                      onToggle: (b) => setS(() {
+                        if (tempBrands.contains(b)) { tempBrands.remove(b); }
+                        else { tempBrands.add(b); }
+                      }),
+                    )),
+                  ],
+
+                  // Size (from variants)
+                  if (_allSizes.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _filterSection(
+                      _categorySlug == 'footwear' ? 'Shoe Size' : 'Size',
+                      child: _chipWrap(
+                        items: _allSizes,
+                        selected: tempSizes,
+                        onToggle: (s) => setS(() {
+                          if (tempSizes.contains(s)) { tempSizes.remove(s); }
+                          else { tempSizes.add(s); }
+                        }),
+                      ),
+                    ),
+                  ],
+
+                  // Color (from variants)
+                  if (_allColors.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _filterSection('Color', child: _chipWrap(
+                      items: _allColors,
+                      selected: tempColors,
+                      onToggle: (c) => setS(() {
+                        if (tempColors.contains(c)) { tempColors.remove(c); }
+                        else { tempColors.add(c); }
+                      }),
+                    )),
+                  ],
+
+                  // Category-specific attribute sections
+                  for (final entry in catAttrs.entries) ...[
+                    const SizedBox(height: 20),
+                    _filterSection(entry.key, child: _chipWrap(
+                      items: entry.value,
+                      selected: tempAttrs,
+                      onToggle: (a) => setS(() {
+                        if (tempAttrs.contains(a)) { tempAttrs.remove(a); }
+                        else { tempAttrs.add(a); }
+                      }),
                     )),
                   ],
 
@@ -366,33 +459,33 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
             ),
 
-            // Apply button
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               child: GestureDetector(
                 onTap: () {
                   setState(() {
-                    _priceRange = tempPrice;
-                    _selectedBrands = tempBrands;
-                    _inStockOnly = tempStock;
+                    _priceRange         = tempPrice;
+                    _selectedBrands     = tempBrands;
+                    _inStockOnly        = tempStock;
+                    _selectedSizes      = tempSizes;
+                    _selectedColors     = tempColors;
+                    _selectedAttributes = tempAttrs;
                   });
                   _applyFilters();
                   Navigator.pop(context);
                 },
                 child: Container(
-                  width: double.infinity,
-                  height: 52,
+                  width: double.infinity, height: 52,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(colors: [_teal, _green]),
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [BoxShadow(
-                      color: _teal.withValues(alpha: 0.3),
-                      blurRadius: 12, offset: const Offset(0, 4),
-                    )],
+                        color: _teal.withValues(alpha: 0.3),
+                        blurRadius: 12, offset: const Offset(0, 4))],
                   ),
-                  child: Center(
+                  child: const Center(
                     child: Text('Apply Filters',
-                        style: const TextStyle(color: Colors.white,
+                        style: TextStyle(color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 15, letterSpacing: 0.5)),
                   ),
@@ -402,6 +495,34 @@ class _ProductListScreenState extends State<ProductListScreen> {
           ]),
         ),
       ),
+    );
+  }
+
+  Widget _chipWrap({
+    required List<String> items,
+    required Set<String> selected,
+    required void Function(String) onToggle,
+  }) {
+    return Wrap(
+      spacing: 8, runSpacing: 8,
+      children: items.map((item) {
+        final sel = selected.contains(item);
+        return GestureDetector(
+          onTap: () => onToggle(item),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: sel ? _teal.withValues(alpha: 0.1) : Colors.white,
+              border: Border.all(color: sel ? _teal : _border, width: sel ? 1.5 : 1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(item,
+                style: TextStyle(fontSize: 13,
+                    color: sel ? _teal : _ink,
+                    fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -567,10 +688,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
               isActive: false,
               onTap: () {
                 setState(() {
-                  _priceRange = RangeValues(0, _maxPrice);
-                  _selectedBrands = {};
-                  _inStockOnly = false;
-                  _sortBy = 'popular';
+                  _priceRange         = RangeValues(0, _maxPrice);
+                  _selectedBrands     = {};
+                  _inStockOnly        = false;
+                  _sortBy             = 'popular';
+                  _selectedSizes      = {};
+                  _selectedColors     = {};
+                  _selectedAttributes = {};
                 });
                 _applyFilters();
               },
@@ -651,8 +775,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
               child: product.primaryImage != null
                   ? CachedNetworkImage(imageUrl: product.primaryImage!,
                   height: 130, width: double.infinity, fit: BoxFit.cover,
-                  placeholder: (_, __) => _imgPlaceholder(130),
-                  errorWidget: (_, __, ___) => _imgPlaceholder(130))
+                  placeholder: (_, _) => _imgPlaceholder(130),
+                  errorWidget: (_, _, _) => _imgPlaceholder(130))
                   : _imgPlaceholder(130),
             ),
             if (discount > 0)
@@ -712,7 +836,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   Row(children: [
                     const Icon(Icons.star_rounded, size: 12, color: Colors.amber),
                     const SizedBox(width: 3),
-                    Text('${product.rating > 0 ? product.rating.toStringAsFixed(1) : "New"}',
+                    Text(product.rating > 0 ? product.rating.toStringAsFixed(1) : "New",
                         style: const TextStyle(fontSize: 11, color: _slate)),
                   ]),
                   const SizedBox(height: 4),
@@ -769,8 +893,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
               child: product.primaryImage != null
                   ? CachedNetworkImage(imageUrl: product.primaryImage!,
                   width: 90, height: 90, fit: BoxFit.cover,
-                  placeholder: (_, __) => _imgPlaceholder(90, width: 90),
-                  errorWidget: (_, __, ___) => _imgPlaceholder(90, width: 90))
+                  placeholder: (_, _) => _imgPlaceholder(90, width: 90),
+                  errorWidget: (_, _, _) => _imgPlaceholder(90, width: 90))
                   : _imgPlaceholder(90, width: 90),
             ),
             if (discount > 0)
@@ -871,10 +995,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
         GestureDetector(
           onTap: () {
             setState(() {
-              _priceRange = RangeValues(0, _maxPrice);
-              _selectedBrands = {};
-              _inStockOnly = false;
-              _sortBy = 'popular';
+              _priceRange         = RangeValues(0, _maxPrice);
+              _selectedBrands     = {};
+              _inStockOnly        = false;
+              _sortBy             = 'popular';
+              _selectedSizes      = {};
+              _selectedColors     = {};
+              _selectedAttributes = {};
             });
             _applyFilters();
           },

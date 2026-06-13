@@ -3,18 +3,34 @@ import '../models/cart_item_model.dart';
 import '../models/order_model.dart';
 
 class OrderService {
-  Future<List<OrderModel>> getOrders({int page = 0, int limit = 10}) async {
+  /// Returns a tuple of (orders, errorMessage).
+  /// On API failure the error string is non-null — callers must show an error
+  /// state rather than silently treating failure as an empty list.
+  /// Handles both response shapes:
+  ///   • admin token → { "orders": [...], "total": N }
+  ///   • user token  → plain array  OR  { "_list": [...] }
+  Future<(List<OrderModel>, String?)> getOrders({int page = 0, int limit = 10}) async {
     final res = await ApiClient.get('/api/orders');
-    if (!res.isSuccess) return [];
+    if (!res.isSuccess) {
+      return (const <OrderModel>[], res.error ?? 'Failed to load orders');
+    }
     try {
-      final list = res.data!['_list'] as List? ?? [];
-      return list
+      final data = res.data;
+      List rawList;
+      // ApiClient wraps list responses as { '_list': [...] }
+      // Admin token returns { 'orders': [...], 'total': N }
+      // Fall back to empty if neither key present
+      rawList = (data?['orders'] as List?)
+          ?? (data?['_list'] as List?)
+          ?? [];
+      final orders = rawList
           .skip(page * limit)
           .take(limit)
           .map((o) => OrderModel.fromJson(o as Map<String, dynamic>))
           .toList();
-    } catch (_) {
-      return [];
+      return (orders, null);
+    } catch (e) {
+      return (const <OrderModel>[], 'Failed to parse orders: $e');
     }
   }
 

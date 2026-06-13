@@ -16,7 +16,7 @@ class ProductService {
   }) async {
     final params = <String, String>{
       'limit': '$limit',
-      if (categoryId   != null) 'category_id': categoryId,
+      if (categoryId != null) 'category_id': categoryId,
       if (searchQuery  != null && searchQuery.isNotEmpty) 'search': searchQuery,
       if (minPrice     != null) 'min_price': '$minPrice',
       if (maxPrice     != null) 'max_price': '$maxPrice',

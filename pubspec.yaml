@@ -25,6 +25,9 @@ dependencies:
   latlong2: ^0.9.0             # LatLng type used by flutter_map
   geolocator: ^13.0.2          # GPS current location
   cached_network_image: ^3.4.1  # robust network image loading with cache + error handling
+  image_picker: ^1.1.2          # photo upload from gallery / camera
+  share_plus: ^10.0.0           # native share sheet
+  flutter_html: ^3.0.0-beta.2   # render HTML product descriptions
 
 dev_dependencies:
   flutter_test:

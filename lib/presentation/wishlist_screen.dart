@@ -155,8 +155,8 @@ class _WishlistScreenState extends State<WishlistScreen> {
               child: product.primaryImage != null
                   ? CachedNetworkImage(imageUrl: product.primaryImage!,
                       width: 90, height: 90, fit: BoxFit.cover,
-                      placeholder: (_, __) => _imgPlaceholder(),
-                      errorWidget: (_, __, ___) => _imgPlaceholder())
+                      placeholder: (_, _) => _imgPlaceholder(),
+                      errorWidget: (_, _, _) => _imgPlaceholder())
                   : _imgPlaceholder(),
             ),
           ),
@@ -314,7 +314,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                   // Cart tab gets live badge
                   if (i == 2)
                     Consumer<CartProvider>(
-                      builder: (_, cart, __) => Stack(
+                      builder: (_, cart, _) => Stack(
                         clipBehavior: Clip.none,
                         children: [
                           Icon(items[i]['icon'] as IconData,

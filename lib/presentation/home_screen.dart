@@ -362,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         const SizedBox(width: 12),
         Expanded(child: Row(children: [
           Image.asset('assets/logo.png', height: 32,
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (_, _, _) => Container(
                 width: 32, height: 32,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(colors: [_teal, _green]),
@@ -414,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _border)),
               child: const Icon(Icons.shopping_bag_outlined, size: 22, color: _ink)),
-            Consumer<CartProvider>(builder: (_, cart, __) {
+            Consumer<CartProvider>(builder: (_, cart, _) {
               if (cart.itemCount == 0) return const SizedBox.shrink();
               return Positioned(right: 2, top: 2,
                 child: Container(
@@ -555,8 +555,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               ? CachedNetworkImage(
                   imageUrl: ApiClient.fixImageUrl(banner['image_url'].toString()) ?? '',
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => _bannerGradient(),
-                  errorWidget: (_, __, ___) => _bannerGradient())
+                  placeholder: (_, _) => _bannerGradient(),
+                  errorWidget: (_, _, _) => _bannerGradient())
               : _bannerGradient(),
           if (banner['title'] != null)
             Positioned(bottom: 0, left: 0, right: 0,
@@ -633,8 +633,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             child: CachedNetworkImage(
               imageUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=300&h=400&fit=crop&crop=top',
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(color: const Color(0xFF1E293B)),
-              errorWidget: (_, __, ___) => Container(
+              placeholder: (_, _) => Container(color: const Color(0xFF1E293B)),
+              errorWidget: (_, _, _) => Container(
                 color: const Color(0xFF1E293B),
                 child: Icon(Icons.person_outline, size: 48,
                     color: Colors.white.withValues(alpha: 0.3))))),
@@ -746,8 +746,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 ? ClipOval(child: CachedNetworkImage(
                     imageUrl: ApiClient.fixImageUrl(cat.imageUrl) ?? '',
                     width: 62, height: 62, fit: BoxFit.cover,
-                    placeholder: (_, __) => const SizedBox.shrink(),
-                    errorWidget: (_, __, ___) => Icon(
+                    placeholder: (_, _) => const SizedBox.shrink(),
+                    errorWidget: (_, _, _) => Icon(
                         _catIcons[cat.slug] ?? Icons.category_outlined,
                         size: 26, color: _slate)))
                 : Icon(_catIcons[cat.slug] ?? Icons.category_outlined,
@@ -890,8 +890,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 CachedNetworkImage(
                     imageUrl: ApiClient.fixImageUrl(imageUrl) ?? '',
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => const SizedBox.shrink(),
-                    errorWidget: (_, __, ___) => const SizedBox.shrink()),
+                    placeholder: (_, _) => const SizedBox.shrink(),
+                    errorWidget: (_, _, _) => const SizedBox.shrink()),
               // Dark overlay
               Container(
                 decoration: BoxDecoration(
@@ -1059,8 +1059,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   ? CachedNetworkImage(
                       imageUrl: p.primaryImage!,
                       height: 130, width: 155, fit: BoxFit.cover,
-                      placeholder: (_, __) => _imgPlaceholder(),
-                      errorWidget: (_, __, ___) => _imgPlaceholder())
+                      placeholder: (_, _) => _imgPlaceholder(),
+                      errorWidget: (_, _, _) => _imgPlaceholder())
                   : _imgPlaceholder()),
             if (discount > 0)
               Positioned(top: 8, left: 8,
@@ -1087,7 +1087,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   try { await context.read<WishlistProvider>().toggleWishlist(p.id); }
                   catch (_) {}
                 },
-                child: Consumer<WishlistProvider>(builder: (_, wish, __) =>
+                child: Consumer<WishlistProvider>(builder: (_, wish, _) =>
                   Container(
                     padding: const EdgeInsets.all(5),
                     decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.9),
@@ -1118,7 +1118,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   Row(children: [
                     const Icon(Icons.star_rounded, size: 11, color: Colors.amber),
                     const SizedBox(width: 2),
-                    Text('${p.rating > 0 ? p.rating.toStringAsFixed(1) : "New"}',
+                    Text(p.rating > 0 ? p.rating.toStringAsFixed(1) : "New",
                         style: const TextStyle(fontSize: 10, color: _slate)),
                   ]),
                   const SizedBox(height: 5),
@@ -1181,8 +1181,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   ? CachedNetworkImage(
                       imageUrl: ApiClient.fixImageUrl(brand.logoUrl) ?? '',
                       height: 28, fit: BoxFit.contain,
-                      placeholder: (_, __) => const SizedBox.shrink(),
-                      errorWidget: (_, __, ___) => _brandText(brand.name))
+                      placeholder: (_, _) => const SizedBox.shrink(),
+                      errorWidget: (_, _, _) => _brandText(brand.name))
                   : Center(child: _brandText(brand.name))));
         }),
       const SizedBox(height: 8),
@@ -1280,8 +1280,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 CachedNetworkImage(
                   imageUrl: ApiClient.fixImageUrl(imageUrl) ?? '',
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => const SizedBox.shrink(),
-                  errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  placeholder: (_, _) => const SizedBox.shrink(),
+                  errorWidget: (_, _, _) => const SizedBox.shrink(),
                 ),
               // Dark overlay (heavier when image is present so text stays legible)
               Container(
@@ -1471,7 +1471,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               CachedNetworkImage(
                 imageUrl: ApiClient.fixImageUrl(col.imageUrl) ?? '',
                 fit: BoxFit.cover,
-                placeholder: (_, __) => const SizedBox.shrink(),
+                placeholder: (_, _) => const SizedBox.shrink(),
                 errorWidget: (ctx, err, st) => Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -1729,7 +1729,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: 4,
-              itemBuilder: (_, __) => Container(
+              itemBuilder: (_, _) => Container(
                 width: 155, margin: const EdgeInsets.only(right: 14),
                 decoration: BoxDecoration(color: _surface,
                     borderRadius: BorderRadius.circular(16))))),
@@ -1739,14 +1739,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
   // ── CATEGORY SHIMMER (skeleton) ───────────────────────────────
   Widget _buildCategoryShimmer() {
-    Widget _row(double leftPad, int count) => SizedBox(
+    Widget row(double leftPad, int count) => SizedBox(
       height: 104,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.only(left: leftPad, right: 16),
         itemCount: count,
-        itemBuilder: (_, __) => Container(
+        itemBuilder: (_, _) => Container(
           margin: const EdgeInsets.only(right: 16),
           child: Column(children: [
             Container(width: 62, height: 62,
@@ -1759,9 +1759,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                     borderRadius: BorderRadius.circular(4))),
           ]))));
     return Column(children: [
-      _row(16, 5),
+      row(16, 5),
       const SizedBox(height: 10),
-      _row(44, 4),   // offset matches live row 2
+      row(44, 4),   // offset matches live row 2
       const SizedBox(height: 8),
     ]);
   }
@@ -1779,7 +1779,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         Padding(padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
           child: Row(children: [
             Image.asset('assets/logo.png', height: 48,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   width: 48, height: 48,
                   decoration: BoxDecoration(
                       gradient: const LinearGradient(colors: [_teal, _green]),
@@ -1914,10 +1914,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 if (i == 0) { setState(() => _currentIndex = 0); return; }
                 setState(() => _currentIndex = i);
                 Widget screen;
-                if (i == 1)      screen = const CategoriesScreen();
-                else if (i == 2) screen = const CartScreen();
-                else if (i == 3) screen = const WishlistScreen();
-                else             screen = const ProfileScreen();
+                if (i == 1) {
+                  screen = const CategoriesScreen();
+                } else if (i == 2) {
+                  screen = const CartScreen();
+                } else if (i == 3) {
+                  screen = const WishlistScreen();
+                } else {
+                  screen = const ProfileScreen();
+                }
                 Navigator.push(context, MaterialPageRoute(builder: (_) => screen))
                     .then((_) {
                   if (mounted) {

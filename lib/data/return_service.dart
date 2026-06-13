@@ -2,26 +2,20 @@ import 'api_client.dart';
 
 class ReturnService {
   /// Submit a new return request for an order.
-  /// Returns null on success, or an error string.
+  /// Returns null on success, or an error string on failure.
+  /// Only calls POST /api/returns — no fallback to avoid duplicate records
+  /// on network timeout (FIX-6: removed double-call pattern).
   Future<String?> submitReturn({
     required String orderId,
     required String reason,
     String? notes,
   }) async {
-    // Try the dedicated returns endpoint first (new backend)
     final res = await ApiClient.post('/api/returns', {
       'order_id': orderId,
       'reason': reason,
       if (notes != null && notes.isNotEmpty) 'comments': notes,
     });
-    if (res.isSuccess) return null;
-
-    // Fallback: legacy order-based endpoint
-    final legacy = await ApiClient.post('/api/orders/$orderId/return', {
-      'reason': reason,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-    });
-    return legacy.isSuccess ? null : legacy.error;
+    return res.isSuccess ? null : res.error ?? 'Failed to submit return request';
   }
 
   /// Returns the return status map if this order has a return request, else null.

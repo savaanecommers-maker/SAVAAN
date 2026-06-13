@@ -849,10 +849,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ? CachedNetworkImage(
                   imageUrl: item.displayImage!,
                   width: 72, height: 80, fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(width: 72, height: 80,
+                  placeholder: (_, _) => Container(width: 72, height: 80,
                       color: _border, child: Icon(Icons.image_outlined,
                           color: _slate.withValues(alpha: 0.4), size: 24)),
-                  errorWidget: (_, __, ___) => Container(width: 72, height: 80,
+                  errorWidget: (_, _, _) => Container(width: 72, height: 80,
                       color: _border, child: Icon(Icons.image_outlined,
                           color: _slate.withValues(alpha: 0.4), size: 24)))
               : Container(width: 72, height: 80, color: _border,
@@ -1130,7 +1130,7 @@ class _CheckoutCouponsSheetState extends State<_CheckoutCouponsSheet> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _coupons.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (_, i) => _buildCard(_coupons[i]),
           ),
       ]),

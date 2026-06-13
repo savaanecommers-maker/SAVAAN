@@ -3,15 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../data/api_client.dart';
 import '../models/cart_item_model.dart';
 import '../models/order_model.dart';
 import '../providers/cart_provider.dart';
 import '../providers/order_provider.dart';
 import 'order_success_screen.dart';
-
-// ── Merchant UPI config ────────────────────────────────────────────────────────
-const String _kMerchantUpi  = '9110581825@pthdfc';
-const String _kMerchantName = 'Chakali Nookaraju';
 
 class PaymentScreen extends StatefulWidget {
   final List<CartItemModel> cartItems;
@@ -41,6 +38,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
   PaymentMethod _selected   = PaymentMethod.upi;
   bool          _isPlacing  = false;
 
+  // ── Merchant UPI config — loaded from backend at init ─────────
+  String? _merchantUpi;
+  String? _merchantName;
+  bool    _merchantLoading = true;
+  String? _merchantError;
+
   static const Color _ink     = Color(0xFF0F172A);
   static const Color _teal    = Color(0xFF0D9488);
   static const Color _green   = Color(0xFF10B981);
@@ -48,6 +51,70 @@ class _PaymentScreenState extends State<PaymentScreen> {
   static const Color _border  = Color(0xFFE2E8F0);
   static const Color _surface = Color(0xFFF8FAFC);
   static const Color _upiGreen = Color(0xFF097939);
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMerchantConfig();
+  }
+
+  /// Fetches UPI VPA and merchant name from the backend contact/settings API.
+  /// Falls back to an error state if the call fails — never uses hardcoded values.
+  Future<void> _fetchMerchantConfig() async {
+    try {
+      final res = await ApiClient.get('/api/content/contact', auth: false);
+      if (!mounted) return;
+      if (res.isSuccess && res.data != null) {
+        final d = res.data!;
+        final upi  = d['upi_vpa']?.toString()       ??
+                     d['upi']?.toString()            ??
+                     d['payment_upi']?.toString();
+        final name = d['merchant_name']?.toString()  ??
+                     d['business_name']?.toString()  ??
+                     d['name']?.toString();
+        if (upi != null && upi.isNotEmpty) {
+          setState(() {
+            _merchantUpi  = upi;
+            _merchantName = name ?? 'Savaan';
+            _merchantLoading = false;
+          });
+          return;
+        }
+      }
+      // Second try: admin settings endpoint
+      final settingsRes = await ApiClient.get('/api/admin/settings');
+      if (!mounted) return;
+      if (settingsRes.isSuccess && settingsRes.data != null) {
+        final d = settingsRes.data!;
+        final upi  = d['upi_vpa']?.toString()      ??
+                     d['payment_upi']?.toString();
+        final name = d['merchant_name']?.toString() ??
+                     d['business_name']?.toString();
+        if (upi != null && upi.isNotEmpty) {
+          setState(() {
+            _merchantUpi  = upi;
+            _merchantName = name ?? 'Savaan';
+            _merchantLoading = false;
+          });
+          return;
+        }
+      }
+      // Both endpoints failed or returned no UPI
+      if (mounted) {
+        setState(() {
+          _merchantError   = 'UPI payment details unavailable. Please use Cash on Delivery.';
+          _merchantLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _merchantError   = 'Failed to load payment details. Please try again.';
+          _merchantLoading = false;
+        });
+      }
+    }
+  }
 
   // ── COD: place immediately ────────────────────────────────────
   Future<void> _placeCodOrder() async {
@@ -297,10 +364,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
   // ── UPI deep link ─────────────────────────────────────────────
   // Opens the user's preferred UPI app (GPay, PhonePe, BHIM, Paytm, etc.)
   Future<void> _launchUpi() async {
+    if (_merchantUpi == null) {
+      _showSnackBar('Payment details not available. Please try again.', Colors.orange);
+      return;
+    }
     final amount = widget.total.toStringAsFixed(2);
     final note   = Uri.encodeComponent('Savaan order payment');
     final upiUri = Uri.parse(
-      'upi://pay?pa=$_kMerchantUpi&pn=${Uri.encodeComponent(_kMerchantName)}'
+      'upi://pay?pa=$_merchantUpi&pn=${Uri.encodeComponent(_merchantName ?? 'Savaan')}'
       '&am=$amount&cu=INR&tn=$note',
     );
     if (await canLaunchUrl(upiUri)) {
@@ -446,9 +517,69 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   // ── UPI detail panel ──────────────────────────────────────────
   Widget _buildUpiPanel() {
+    // Show loading spinner while fetching merchant config
+    if (_merchantLoading) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        decoration: BoxDecoration(
+          color: _upiGreen.withValues(alpha: 0.03),
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(12),
+            bottomRight: Radius.circular(12),
+          ),
+          border: Border.all(color: _upiGreen.withValues(alpha: 0.2)),
+        ),
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    // Show error if merchant config could not be loaded
+    if (_merchantError != null) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.05),
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(12),
+            bottomRight: Radius.circular(12),
+          ),
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
+        ),
+        child: Column(children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.warning_amber_rounded,
+                size: 16, color: Colors.orange),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(_merchantError!,
+                  style: TextStyle(fontSize: 12, color: _slate, height: 1.5)),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () {
+              setState(() { _merchantLoading = true; _merchantError = null; });
+              _fetchMerchantConfig();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: _teal),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('Retry', style: TextStyle(color: _teal,
+                  fontWeight: FontWeight.w600, fontSize: 13)),
+            ),
+          ),
+        ]),
+      );
+    }
+
     // QR encodes the exact amount so the user just scans & pays
     final upiQrData =
-        'upi://pay?pa=$_kMerchantUpi&pn=${Uri.encodeComponent(_kMerchantName)}'
+        'upi://pay?pa=$_merchantUpi&pn=${Uri.encodeComponent(_merchantName ?? 'Savaan')}'
         '&am=${widget.total.toStringAsFixed(2)}&cu=INR'
         '&tn=${Uri.encodeComponent('Savaan order payment')}';
 
@@ -480,7 +611,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           child: Column(children: [
             // Merchant name + verified badge
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(_kMerchantName,
+              Text(_merchantName ?? 'Savaan',
                   style: const TextStyle(fontSize: 16,
                       fontWeight: FontWeight.w700, color: _ink)),
               const SizedBox(width: 6),
@@ -529,14 +660,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(_kMerchantUpi,
+                  child: Text(_merchantUpi ?? '',
                       style: const TextStyle(fontSize: 13,
                           fontWeight: FontWeight.w600, color: _ink,
                           letterSpacing: 0.3)),
                 ),
                 GestureDetector(
                   onTap: () {
-                    Clipboard.setData(const ClipboardData(text: _kMerchantUpi));
+                    Clipboard.setData(ClipboardData(text: _merchantUpi ?? ''));
                     _showSnackBar('UPI ID copied!', _teal);
                   },
                   child: Icon(Icons.copy, size: 16, color: _teal),

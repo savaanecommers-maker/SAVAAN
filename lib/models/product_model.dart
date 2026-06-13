@@ -2,6 +2,7 @@ import '../data/api_client.dart';
 
 class ProductModel {
   final String id;
+  final String? slug;
   final String name;
   final String? description;
   final double price;
@@ -23,6 +24,7 @@ class ProductModel {
 
   ProductModel({
     required this.id,
+    this.slug,
     required this.name,
     this.description,
     required this.price,
@@ -94,6 +96,7 @@ class ProductModel {
 
     return ProductModel(
       id:            json['id']?.toString() ?? '',
+      slug:          json['slug']?.toString(),
       name:          json['name']?.toString() ?? '',
       description:   json['description']?.toString(),
       price:         double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
@@ -164,6 +167,12 @@ class ProductModel {
   // Whether product is low stock (5 or fewer)
   bool get isLowStock => stock > 0 && stock <= 5;
 
+  // Deep-link share URL — uses slug if present, falls back to id
+  String get shareUrl {
+    final handle = (slug != null && slug!.isNotEmpty) ? slug! : id;
+    return 'https://savaan.in/product/$handle';
+  }
+
   // First image or null
   String? get primaryImage => images.isNotEmpty ? images[0] : null;
 
@@ -191,6 +200,7 @@ class ProductModel {
   // ── CopyWith ────────────────────────────────────────────────
   ProductModel copyWith({
     String? id,
+    String? slug,
     String? name,
     String? description,
     double? price,
@@ -212,6 +222,7 @@ class ProductModel {
   }) {
     return ProductModel(
       id:              id ?? this.id,
+      slug:            slug ?? this.slug,
       name:            name ?? this.name,
       description:     description ?? this.description,
       price:           price ?? this.price,

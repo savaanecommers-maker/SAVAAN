@@ -694,30 +694,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.privacy_tip_outlined,
                     iconColor: const Color(0xFF6366F1),
                     label: 'Privacy Policy',
-                    onTap: () {
-                      try {
-                        Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => const LegalDocScreen(slug: 'privacy_policy'),
-                        ));
-                      } catch (_) {
-                        _showSnackBar('Privacy Policy coming soon');
-                      }
-                    },
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const LegalDocScreen(slug: 'privacy_policy'),
+                    )),
                   ),
                   _divider(),
                   _arrowTile(
                     icon: Icons.description_outlined,
                     iconColor: const Color(0xFF64748B),
                     label: 'Terms & Conditions',
-                    onTap: () {
-                      try {
-                        Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => const LegalDocScreen(slug: 'terms_conditions'),
-                        ));
-                      } catch (_) {
-                        _showSnackBar('Terms & Conditions coming soon');
-                      }
-                    },
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const LegalDocScreen(slug: 'terms_conditions'),
+                    )),
+                  ),
+                  _divider(),
+                  _arrowTile(
+                    icon: Icons.assignment_return_outlined,
+                    iconColor: const Color(0xFFEC4899),
+                    label: 'Return & Refund Policy',
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const LegalDocScreen(slug: 'return_refund'),
+                    )),
+                  ),
+                  _divider(),
+                  _arrowTile(
+                    icon: Icons.local_shipping_outlined,
+                    iconColor: const Color(0xFF10B981),
+                    label: 'Shipping Policy',
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const LegalDocScreen(slug: 'shipping_policy'),
+                    )),
                   ),
                   _divider(),
                   _arrowTile(

@@ -53,7 +53,13 @@ class AuthService {
 
   // ── Reset password ───────────────────────────────────────────
   Future<String?> resetPassword({required String email}) async {
-    return 'Password reset: please contact support@savaan.com';
+    final res = await ApiClient.post(
+      '/api/auth/forgot-password',
+      {'email': email},
+      auth: false,
+    );
+    if (!res.isSuccess) return res.error;
+    return null;
   }
 
   // ── Google Sign-In ───────────────────────────────────────────

@@ -179,12 +179,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       return CachedNetworkImage(
           imageUrl: url,
           width: double.infinity, fit: BoxFit.cover,
-          placeholder: (_, __) => const SizedBox.shrink(),
-          errorWidget: (_, __, ___) => mapUrl != null && url != mapUrl
+          placeholder: (_, _) => const SizedBox.shrink(),
+          errorWidget: (_, _, _) => mapUrl != null && url != mapUrl
               ? CachedNetworkImage(imageUrl: mapUrl,
                   width: double.infinity, fit: BoxFit.cover,
-                  placeholder: (_, __) => const SizedBox.shrink(),
-                  errorWidget: (_, __, ___) => _catPlaceholder(cat))
+                  placeholder: (_, _) => const SizedBox.shrink(),
+                  errorWidget: (_, _, _) => _catPlaceholder(cat))
               : _catPlaceholder(cat));
     }
     return _catPlaceholder(cat);

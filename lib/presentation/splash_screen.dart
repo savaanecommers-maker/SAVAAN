@@ -89,8 +89,8 @@ class _SplashScreenState extends State<SplashScreen>
     // ── Maintenance mode check ────────────────────────────────────
     if (settingsProvider.maintenanceMode) {
       Navigator.pushReplacement(context, PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const _MaintenanceScreen(),
-        transitionsBuilder: (_, anim, __, child) =>
+        pageBuilder: (_, _, _) => const _MaintenanceScreen(),
+        transitionsBuilder: (_, anim, _, child) =>
             FadeTransition(opacity: anim, child: child),
         transitionDuration: const Duration(milliseconds: 500),
       ));
@@ -119,9 +119,9 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
     Navigator.pushReplacement(context, PageRouteBuilder(
-      pageBuilder: (_, __, ___) =>
+      pageBuilder: (_, _, _) =>
           loggedIn ? const HomeScreen() : const AuthParentPage(),
-      transitionsBuilder: (_, anim, __, child) =>
+      transitionsBuilder: (_, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
       transitionDuration: const Duration(milliseconds: 500),
     ));
@@ -154,7 +154,7 @@ class _SplashScreenState extends State<SplashScreen>
               'assets/splashscreeenWave.png',
               width: screenW,
               fit: BoxFit.fitWidth,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
           ),
 
@@ -170,14 +170,14 @@ class _SplashScreenState extends State<SplashScreen>
               Center(
                 child: AnimatedBuilder(
                   animation: _logoCtrl,
-                  builder: (_, __) => Transform.scale(
+                  builder: (_, _) => Transform.scale(
                     scale: _logoScale.value,
                     child: Opacity(
                       opacity: _logoFade.value,
                       child: Image.asset(
                         'assets/logo.png',
                         height: screenH * 0.13,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (_, _, _) => Container(
                           width: screenH * 0.13,
                           height: screenH * 0.13,
                           decoration: BoxDecoration(
@@ -360,7 +360,7 @@ class _MaintenanceScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Image.asset('assets/logo.png', height: 80,
-                    errorBuilder: (_, __, ___) => const Icon(
+                    errorBuilder: (_, _, _) => const Icon(
                         Icons.build_outlined, size: 64, color: Color(0xFF0D9488))),
                 const SizedBox(height: 24),
                 const Text('SAVAAN',

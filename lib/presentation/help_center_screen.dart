@@ -351,8 +351,11 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
           behavior: HitTestBehavior.opaque,
           onTap: () {
             setState(() {
-              if (isOpen) _expanded.remove(id);
-              else        _expanded.add(id);
+              if (isOpen) {
+                _expanded.remove(id);
+              } else {
+                _expanded.add(id);
+              }
             });
           },
           child: Padding(

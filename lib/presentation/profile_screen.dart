@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../data/api_client.dart';
 import '../data/user_service.dart';
@@ -27,8 +29,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _userService = UserService();
 
   UserModel? _user;
-  bool _isLoading = true;
-  bool _isSaving  = false;
+  bool _isLoading       = true;
+  bool _isSaving        = false;
+  bool _isUploadingPhoto = false;
 
   final _nameController  = TextEditingController();
   final _phoneController = TextEditingController();
@@ -43,14 +46,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color _surface = Color(0xFFF8FAFC);
 
   final List<Map<String, dynamic>> _menuItems = [
-    {'icon': Icons.receipt_long_outlined,  'label': 'My Orders',       'badge': 0, 'color': Color(0xFF6366F1)},
-    {'icon': Icons.favorite_outline,       'label': 'Wishlist',        'badge': 0, 'color': Color(0xFFEC4899)},
-    {'icon': Icons.location_on_outlined,   'label': 'Address Book',    'badge': 0, 'color': Color(0xFF0EA5E9)},
-    {'icon': Icons.payment_outlined,       'label': 'Payment Methods', 'badge': 0, 'color': Color(0xFF10B981)},
-    {'icon': Icons.local_offer_outlined,   'label': 'Coupons',         'badge': 0, 'color': Color(0xFFF59E0B)},
-    {'icon': Icons.notifications_outlined, 'label': 'Notifications',   'badge': 0, 'color': Color(0xFFEF4444)},
-    {'icon': Icons.help_outline_rounded,   'label': 'Help & Support',  'badge': 0, 'color': Color(0xFF8B5CF6)},
-    {'icon': Icons.settings_outlined,      'label': 'Settings',        'badge': 0, 'color': Color(0xFF64748B)},
+    {'icon': Icons.receipt_long_outlined,  'label': 'My Orders',      'badge': 0, 'color': Color(0xFF6366F1)},
+    {'icon': Icons.favorite_outline,       'label': 'Wishlist',       'badge': 0, 'color': Color(0xFFEC4899)},
+    {'icon': Icons.location_on_outlined,   'label': 'Address Book',   'badge': 0, 'color': Color(0xFF0EA5E9)},
+    {'icon': Icons.local_offer_outlined,   'label': 'Coupons',        'badge': 0, 'color': Color(0xFFF59E0B)},
+    {'icon': Icons.notifications_outlined, 'label': 'Notifications',  'badge': 0, 'color': Color(0xFFEF4444)},
+    {'icon': Icons.help_outline_rounded,   'label': 'Help & Support', 'badge': 0, 'color': Color(0xFF8B5CF6)},
+    {'icon': Icons.settings_outlined,      'label': 'Settings',       'badge': 0, 'color': Color(0xFF64748B)},
   ];
 
   @override
@@ -107,6 +109,119 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } else {
         setState(() => _isSaving = false);
         _showSnackBar('Failed to save', Colors.redAccent);
+      }
+    }
+  }
+
+  /// Pick a photo from gallery or camera, upload to /api/upload,
+  /// then save the returned URL via PUT /api/auth/profile.
+  Future<void> _pickAndUploadPhoto() async {
+    // Let user choose source
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Center(child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(color: _border,
+                  borderRadius: BorderRadius.circular(2)),
+            )),
+            const SizedBox(height: 16),
+            const Align(alignment: Alignment.centerLeft,
+              child: Text('Choose Photo',
+                  style: TextStyle(fontSize: 16,
+                      fontWeight: FontWeight.bold, color: _ink)),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _teal.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.photo_library_outlined, color: _teal),
+              ),
+              title: const Text('Gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _teal.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.camera_alt_outlined, color: _teal),
+              ),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    // Pick image
+    final picker = ImagePicker();
+    final XFile? picked;
+    try {
+      picked = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+    } catch (e) {
+      if (mounted) _showSnackBar('Could not access camera/gallery', Colors.redAccent);
+      return;
+    }
+    if (picked == null) return;
+
+    setState(() => _isUploadingPhoto = true);
+    try {
+      // Upload via multipart POST /api/upload
+      final uploadRes = await ApiClient.uploadFile(
+        '/api/upload',
+        File(picked.path),
+        field: 'file',
+      );
+      if (!uploadRes.isSuccess || uploadRes.data == null) {
+        throw Exception(uploadRes.error ?? 'Upload failed');
+      }
+      final avatarUrl = uploadRes.data!['url']?.toString()
+          ?? uploadRes.data!['file_url']?.toString()
+          ?? uploadRes.data!['path']?.toString();
+      if (avatarUrl == null || avatarUrl.isEmpty) {
+        throw Exception('Server returned no URL');
+      }
+
+      // Save URL to profile
+      final profileRes = await ApiClient.put('/api/auth/profile', {
+        'avatar_url': avatarUrl,
+      });
+      if (!profileRes.isSuccess) {
+        throw Exception(profileRes.error ?? 'Failed to save avatar');
+      }
+
+      if (mounted) {
+        setState(() {
+          _user = _user?.copyWith(avatarUrl: avatarUrl);
+          _isUploadingPhoto = false;
+        });
+        _showSnackBar('Photo updated!', _teal);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
+        _showSnackBar('Upload failed: ${e.toString()}', Colors.redAccent);
       }
     }
   }
@@ -196,9 +311,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 'Address Book':
         Navigator.push(context,
             MaterialPageRoute(builder: (_) => const AddressScreen()));
-        break;
-      case 'Payment Methods':
-        _showSnackBar('Payment methods coming soon', _teal);
         break;
       case 'Coupons':
         _showCoupons();
@@ -316,15 +428,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         )),
         GestureDetector(
-          onTap: () => _showSnackBar('Photo upload coming soon', _teal),
+          onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.camera_alt_outlined,
-                color: Colors.white, size: 18),
+            child: _isUploadingPhoto
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.camera_alt_outlined,
+                    color: Colors.white, size: 18),
           ),
         ),
       ]),
@@ -569,7 +686,7 @@ class _CouponsSheetState extends State<_CouponsSheet> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _coupons.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
               final c = _coupons[i];
               final code       = c['code']?.toString() ?? '';

@@ -144,8 +144,8 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
   }
 
   Widget _buildContent() {
-    final email    = _info['email']          ?? 'support@savaan.in';
-    final phone    = _info['phone']          ?? '+91 98765 43210';
+    final email    = _info['email']          ?? 'customer@savaan.in';
+    final phone    = _info['phone']          ?? '+91 9110581825';
     final whatsapp = _info['whatsapp']       ?? phone;
     final address  = _info['address']        ?? 'Mumbai, India';
     final hours    = _info['business_hours'] ?? 'Mon–Sat: 9 AM – 9 PM';

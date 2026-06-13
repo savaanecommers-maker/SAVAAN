@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'legal_doc_screen.dart';
 import 'about_screen.dart';
 import 'help_center_screen.dart';
@@ -99,6 +100,10 @@ class HelpSupportScreen extends StatelessWidget {
                 children: [
                   // Hero banner
                   _buildHeroBanner(),
+                  const SizedBox(height: 20),
+
+                  // Quick contact actions
+                  _buildQuickContact(context),
                   const SizedBox(height: 24),
 
                   // Legal Documents section
@@ -291,6 +296,115 @@ class HelpSupportScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildQuickContact(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: _teal.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(Icons.headset_mic_outlined, size: 16, color: _teal),
+        ),
+        const SizedBox(width: 10),
+        const Text('Contact Us',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _ink)),
+      ]),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(child: _contactBtn(
+          context: context,
+          icon: Icons.email_outlined,
+          label: 'Email Us',
+          color: const Color(0xFF6366F1),
+          onTap: () => _launchUrl(
+            context, 'mailto:customer@savaan.in?subject=Support Request'),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: _contactBtn(
+          context: context,
+          icon: Icons.call_rounded,
+          label: 'Call Us',
+          color: const Color(0xFF10B981),
+          onTap: () => _launchUrl(context, 'tel:+919110581825'),
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: _contactBtn(
+          context: context,
+          icon: Icons.chat_bubble_outline_rounded,
+          label: 'Live Chat',
+          color: const Color(0xFF64748B),
+          isComingSoon: true,
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Live Chat coming soon!',
+                    style: TextStyle(color: Colors.white)),
+                backgroundColor: const Color(0xFF0D9488),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.all(16),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
+        )),
+      ]),
+    ]);
+  }
+
+  Widget _contactBtn({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    bool isComingSoon = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: isComingSoon
+              ? _surface
+              : color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: isComingSoon ? _border : color.withValues(alpha: 0.3)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 22, color: isComingSoon ? _slate : color),
+          const SizedBox(height: 5),
+          Text(label,
+              style: TextStyle(fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isComingSoon ? _slate : color)),
+          if (isComingSoon) ...[
+            const SizedBox(height: 2),
+            Text('Coming Soon',
+                style: TextStyle(fontSize: 9, color: _slate.withValues(alpha: 0.6))),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _launchUrl(BuildContext context, String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open link')),
+        );
+      }
+    }
   }
 
   Widget _buildContactBanner(BuildContext context) {

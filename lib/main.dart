@@ -17,17 +17,22 @@ import 'theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-// Override the global HttpClient to accept all TLS certificates in debug mode.
-// Fixes: Flutter cannot load S3/CDN images on Android devices whose
-// system cert store doesn't include the CA used by AWS or CDN endpoints.
+// SECURITY NOTE (SEC-9): _TrustAllCerts disables TLS certificate validation.
+// It is ONLY activated in debug builds via the kDebugMode gate below.
+// ⚠️  NEVER change the condition to `true` or remove the kDebugMode guard —
+//     doing so would silently expose all users to MITM attacks in production.
+// This exists solely to work around Android emulator cert-store gaps during
+// development. CDN/S3 images fail to load on some Android devices in debug
+// because the system cert store does not include the AWS CA.
 class _TrustAllCerts extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) =>
       super.createHttpClient(context)
-        ..badCertificateCallback = (_, __, ___) => true;
+        ..badCertificateCallback = (_, _, _) => true;
 }
 
 void main() async {
+  // kDebugMode gate — this override MUST NOT be applied in release builds.
   if (kDebugMode) HttpOverrides.global = _TrustAllCerts();
 
   WidgetsFlutterBinding.ensureInitialized();

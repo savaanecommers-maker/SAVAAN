@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../data/api_client.dart';
 import '../providers/cart_provider.dart';
@@ -182,8 +181,8 @@ class _CartScreenState extends State<CartScreen> {
             child: item.displayImage != null
                 ? CachedNetworkImage(imageUrl: item.displayImage!,
                     width: 80, height: 80, fit: BoxFit.cover,
-                    placeholder: (_, __) => _imgPlaceholder(),
-                    errorWidget: (_, __, ___) => _imgPlaceholder())
+                    placeholder: (_, _) => _imgPlaceholder(),
+                    errorWidget: (_, _, _) => _imgPlaceholder())
                 : _imgPlaceholder(),
           ),
           const SizedBox(width: 12),
@@ -640,7 +639,7 @@ class _CartCouponsSheetState extends State<_CartCouponsSheet> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _coupons.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (_, i) => _buildCard(_coupons[i]),
           ),
       ]),

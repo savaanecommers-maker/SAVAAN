@@ -78,7 +78,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
               // Animated checkmark
               AnimatedBuilder(
                 animation: _ctrl,
-                builder: (_, __) => Transform.scale(
+                builder: (_, _) => Transform.scale(
                   scale: _scaleAnim.value,
                   child: Container(
                     width: 100, height: 100,

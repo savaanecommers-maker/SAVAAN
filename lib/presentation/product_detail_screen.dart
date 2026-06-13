@@ -419,8 +419,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         child: images.isNotEmpty
             ? CachedNetworkImage(imageUrl: images[_selectedImageIndex],
             fit: BoxFit.cover,
-            placeholder: (_, __) => _imagePlaceholder(),
-            errorWidget: (_, __, ___) => _imagePlaceholder())
+            placeholder: (_, _) => _imagePlaceholder(),
+            errorWidget: (_, _, _) => _imagePlaceholder())
             : _imagePlaceholder(),
       ),
 
@@ -449,8 +449,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   borderRadius: BorderRadius.circular(9),
                   child: CachedNetworkImage(imageUrl: images[i],
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => const SizedBox.shrink(),
-                      errorWidget: (_, __, ___) =>
+                      placeholder: (_, _) => const SizedBox.shrink(),
+                      errorWidget: (_, _, _) =>
                           Icon(Icons.image_outlined, color: _border)),
                 ),
               ),
@@ -1169,7 +1169,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             Row(children: [
               // Cart button with badge
               Consumer<CartProvider>(
-                builder: (_, cart, __) => GestureDetector(
+                builder: (_, cart, _) => GestureDetector(
                   onTap: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const CartScreen())),
                   child: Container(
@@ -1239,7 +1239,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
                   ),
                   child: Consumer<WishlistProvider>(
-                    builder: (_, wish, __) => Icon(
+                    builder: (_, wish, _) => Icon(
                       wish.isWishlisted(widget.productId)
                           ? Icons.favorite_rounded
                           : Icons.favorite_outline,

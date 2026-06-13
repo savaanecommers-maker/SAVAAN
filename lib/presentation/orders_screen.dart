@@ -39,19 +39,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
           Expanded(
             child: orderProvider.isLoading
                 ? const Center(child: CircularProgressIndicator(color: _teal))
-                : orderProvider.orders.isEmpty
-                    ? _buildEmpty()
-                    : RefreshIndicator(
-                        color: _teal,
-                        onRefresh: () =>
-                            context.read<OrderProvider>().loadOrders(force: true),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          itemCount: orderProvider.orders.length,
-                          itemBuilder: (_, i) =>
-                              _buildOrderCard(orderProvider.orders[i]),
-                        ),
-                      ),
+                : orderProvider.loadError != null && orderProvider.orders.isEmpty
+                    ? _buildError(orderProvider.loadError!)
+                    : orderProvider.orders.isEmpty
+                        ? _buildEmpty()
+                        : RefreshIndicator(
+                            color: _teal,
+                            onRefresh: () =>
+                                context.read<OrderProvider>().loadOrders(force: true),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              itemCount: orderProvider.orders.length,
+                              itemBuilder: (_, i) =>
+                                  _buildOrderCard(orderProvider.orders[i]),
+                            ),
+                          ),
           ),
         ]),
       ),
@@ -248,6 +250,40 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ]),
           );
         }),
+      ),
+    );
+  }
+
+  Widget _buildError(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.error_outline_rounded, size: 56,
+              color: Colors.redAccent.withValues(alpha: 0.5)),
+          const SizedBox(height: 16),
+          const Text('Could not load orders',
+              style: TextStyle(fontSize: 17,
+                  fontWeight: FontWeight.w600, color: _ink)),
+          const SizedBox(height: 8),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: _slate)),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: () => context.read<OrderProvider>().loadOrders(force: true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [_teal, _green]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('Retry',
+                  style: TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.w600, fontSize: 14)),
+            ),
+          ),
+        ]),
       ),
     );
   }

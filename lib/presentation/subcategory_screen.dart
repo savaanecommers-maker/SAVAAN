@@ -146,8 +146,8 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
       return CachedNetworkImage(
         imageUrl: ApiClient.fixImageUrl(url) ?? '',
         fit: BoxFit.cover,
-        placeholder: (_, __) => _gradientBox(),
-        errorWidget: (_, __, ___) => _gradientBox(),
+        placeholder: (_, _) => _gradientBox(),
+        errorWidget: (_, _, _) => _gradientBox(),
       );
     }
     return _gradientBox();
@@ -367,11 +367,11 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
         imageUrl: url,
         width: double.infinity,
         fit: BoxFit.cover,
-        placeholder: (_, __) => const SizedBox.shrink(),
-        errorWidget: (_, __, ___) => mapUrl != null && url != mapUrl
+        placeholder: (_, _) => const SizedBox.shrink(),
+        errorWidget: (_, _, _) => mapUrl != null && url != mapUrl
             ? CachedNetworkImage(imageUrl: mapUrl, width: double.infinity, fit: BoxFit.cover,
-                placeholder: (_, __) => const SizedBox.shrink(),
-                errorWidget: (_, __, ___) => _iconArea(sub))
+                placeholder: (_, _) => const SizedBox.shrink(),
+                errorWidget: (_, _, _) => _iconArea(sub))
             : _iconArea(sub),
       );
     }
