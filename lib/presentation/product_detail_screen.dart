@@ -1,12 +1,17 @@
+import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../data/api_client.dart';
 import '../data/product_service.dart';
 import '../models/cart_item_model.dart';
 import '../models/product_model.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
+import 'cart_screen.dart';
 import 'checkout_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -35,8 +40,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _variantRequired = false; // turns true when user tries to add-to-cart without selecting
   int _quantity = 1;
   bool _addingToCart = false;
+  bool _isSharing = false;
   List<Map<String, dynamic>> _reviews = [];
   bool _reviewsLoading = true;
+
+  // Pincode checker state
+  final _pincodeController = TextEditingController();
+  String? _pincodeResult;
+  bool _checkingPincode = false;
 
   static const Color _ink     = Color(0xFF0F172A);
   static const Color _teal    = Color(0xFF0D9488);
@@ -56,6 +67,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       _loadProduct();
     }
     _loadReviews();
+  }
+
+  @override
+  void dispose() {
+    _pincodeController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadReviews() async {
@@ -179,6 +196,102 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  Future<void> _shareProduct() async {
+    final p = _product;
+    if (p == null || _isSharing) return;
+
+    setState(() => _isSharing = true);
+
+    final productUrl = p.shareUrl;
+    final shareText = 'Check out this on SAVAAN! 🛍️\n\n'
+        '${p.name}\n'
+        '${p.formattedPrice}'
+        '${p.formattedOriginalPrice != null ? '  ~~${p.formattedOriginalPrice!}~~' : ''}\n\n'
+        '$productUrl\n\n'
+        'Shop luxury products at savaan.in';
+
+    try {
+      // Attempt to share with actual product image
+      final imageUrl = p.primaryImage;
+      if (imageUrl != null && imageUrl.startsWith('http')) {
+        try {
+          final response = await http.get(Uri.parse(imageUrl))
+              .timeout(const Duration(seconds: 8));
+          if (response.statusCode == 200) {
+            final bytes = response.bodyBytes;
+            final isPng = imageUrl.toLowerCase().contains('.png');
+            final mimeType = isPng ? 'image/png' : 'image/jpeg';
+            final ext = isPng ? '.png' : '.jpg';
+            final fileName = 'savaan_product$ext';
+
+            final xfile = XFile.fromData(
+              Uint8List.fromList(bytes),
+              name: fileName,
+              mimeType: mimeType,
+            );
+
+            await Share.shareXFiles(
+              [xfile],
+              text: shareText,
+              subject: p.name,
+              fileNameOverrides: [fileName],
+            );
+            return;
+          }
+        } catch (_) {
+          // Image download failed — fall through to text-only sharing
+        }
+      }
+
+      // Fallback: text + image URL in message
+      final fallbackText = imageUrl != null
+          ? '$shareText\n\n📸 $imageUrl'
+          : shareText;
+      await Share.share(fallbackText, subject: p.name);
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar('Unable to share right now', Colors.redAccent);
+      }
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
+    }
+  }
+
+  void _checkDelivery() {
+    final pincode = _pincodeController.text.trim();
+    if (pincode.length != 6 || int.tryParse(pincode) == null) {
+      setState(() => _pincodeResult = 'Enter a valid 6-digit pincode');
+      return;
+    }
+    setState(() => _checkingPincode = true);
+
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      final prefix = int.parse(pincode.substring(0, 3));
+      String result;
+      // Warehouse: Visakhapatnam (530xxx)
+      if (prefix >= 530 && prefix <= 531) {
+        result = 'Delivery in 1–2 business days';
+      } else if ((prefix >= 500 && prefix <= 535) ||
+                 (prefix >= 570 && prefix <= 577) ||
+                 (prefix >= 515 && prefix <= 530)) {
+        result = 'Delivery in 2–3 business days';
+      } else if ((prefix >= 600 && prefix <= 643) || // Tamil Nadu
+                 (prefix >= 560 && prefix <= 562) || // Bengaluru
+                 (prefix >= 400 && prefix <= 421) || // Mumbai
+                 (prefix >= 700 && prefix <= 743) || // Kolkata
+                 (prefix >= 110 && prefix <= 130)) { // Delhi
+        result = 'Delivery in 3–5 business days';
+      } else {
+        result = 'Delivery in 5–7 business days';
+      }
+      setState(() {
+        _pincodeResult = result;
+        _checkingPincode = false;
+      });
+    });
+  }
+
   Future<void> _addToCart() async {
     if (_addingToCart) return;
 
@@ -287,6 +400,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         _buildVariantSelector(p),
         _buildQuantitySelector(),
         _buildTrustBadges(),
+        _buildPincodeChecker(),
         _buildDescription(p),
         _buildReviewsPreview(),
       ]),
@@ -796,19 +910,156 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  // ── Pincode / delivery estimator ─────────────────────────────
+  Widget _buildPincodeChecker() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.local_shipping_outlined, size: 18, color: _teal),
+          const SizedBox(width: 8),
+          const Text('Check Delivery',
+              style: TextStyle(fontSize: 14,
+                  fontWeight: FontWeight.w600, color: _ink)),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _pincodeController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(
+                hintText: 'Enter pincode',
+                hintStyle: TextStyle(color: _slate, fontSize: 13),
+                counterText: '',
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: _border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: _border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: _teal),
+                ),
+              ),
+              onSubmitted: (_) => _checkDelivery(),
+            ),
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: _checkingPincode ? null : _checkDelivery,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              decoration: BoxDecoration(
+                color: _teal,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: _checkingPincode
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('Check',
+                      style: TextStyle(color: Colors.white,
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ]),
+        if (_pincodeResult != null) ...[
+          const SizedBox(height: 10),
+          Row(children: [
+            Icon(
+              _pincodeResult!.startsWith('Delivery')
+                  ? Icons.check_circle_outline
+                  : Icons.info_outline,
+              size: 16,
+              color: _pincodeResult!.startsWith('Delivery')
+                  ? _green
+                  : Colors.orange,
+            ),
+            const SizedBox(width: 6),
+            Text(_pincodeResult!,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: _pincodeResult!.startsWith('Delivery')
+                      ? _green
+                      : Colors.orange,
+                )),
+          ]),
+        ],
+      ]),
+    );
+  }
+
   // ── Description ──────────────────────────────────────────────
   Widget _buildDescription(ProductModel p) {
-    if (p.description == null) return const SizedBox.shrink();
+    if (p.description == null || p.description!.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final desc = p.description!;
+    final isHtml = desc.contains('<') && desc.contains('>');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('Description',
             style: TextStyle(fontSize: 16,
                 fontWeight: FontWeight.bold, color: _ink)),
-        const SizedBox(height: 10),
-        Text(p.description!,
-            style: TextStyle(fontSize: 14, color: _slate,
-                height: 1.6)),
+        const SizedBox(height: 6),
+        if (isHtml)
+          Html(
+            data: desc,
+            style: {
+              'body': Style(
+                fontSize: FontSize(14),
+                color: _slate,
+                lineHeight: LineHeight(1.6),
+                margin: Margins.zero,
+                padding: HtmlPaddings.zero,
+              ),
+              'h2': Style(
+                fontSize: FontSize(16),
+                fontWeight: FontWeight.bold,
+                color: _ink,
+                margin: Margins.only(top: 8, bottom: 4),
+              ),
+              'h3': Style(
+                fontSize: FontSize(15),
+                fontWeight: FontWeight.w600,
+                color: _ink,
+                margin: Margins.only(top: 6, bottom: 4),
+              ),
+              'ul': Style(
+                margin: Margins.only(left: 16, top: 4, bottom: 4),
+              ),
+              'ol': Style(
+                margin: Margins.only(left: 16, top: 4, bottom: 4),
+              ),
+              'li': Style(
+                fontSize: FontSize(14),
+                color: _slate,
+                lineHeight: LineHeight(1.6),
+              ),
+              'b': Style(fontWeight: FontWeight.bold, color: _ink),
+              'strong': Style(fontWeight: FontWeight.bold, color: _ink),
+              'p': Style(margin: Margins.only(bottom: 6)),
+            },
+          )
+        else
+          Text(desc,
+              style: TextStyle(fontSize: 14, color: _slate, height: 1.6)),
       ]),
     );
   }
@@ -916,8 +1167,48 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             ),
             Row(children: [
+              // Cart button with badge
+              Consumer<CartProvider>(
+                builder: (_, cart, __) => GestureDetector(
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const CartScreen())),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      shape: BoxShape.circle,
+                      boxShadow: [BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
+                    ),
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      const Icon(Icons.shopping_cart_outlined, size: 20, color: _ink),
+                      if (cart.itemCount > 0)
+                        Positioned(
+                          top: -6, right: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                            decoration: const BoxDecoration(
+                              color: _teal,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              cart.itemCount > 99 ? '99+' : '${cart.itemCount}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 9, color: Colors.white,
+                                fontWeight: FontWeight.bold, height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ]),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               GestureDetector(
-                onTap: () {},
+                onTap: _isSharing ? null : _shareProduct,
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -926,8 +1217,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     boxShadow: [BoxShadow(
                         color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
                   ),
-                  child: const Icon(Icons.ios_share_outlined,
-                      size: 20, color: _ink),
+                  child: _isSharing
+                      ? const SizedBox(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: _teal))
+                      : const Icon(Icons.ios_share_outlined,
+                          size: 20, color: _ink),
                 ),
               ),
               const SizedBox(width: 8),
