@@ -200,7 +200,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _recalcTotal() {
-    _currentTotal = (_subtotal - _couponDiscount + _currentShipping).clamp(0, double.infinity);
+    // If a coupon is applied, re-verify it still meets minimum order threshold
+    if (_couponCode != null && _couponDiscount > 0) {
+      // Re-apply coupon in background to validate min order with new subtotal
+      _revalidateCoupon();
+    } else {
+      _currentTotal = (_subtotal + _currentShipping).clamp(0, double.infinity);
+    }
+  }
+
+  Future<void> _revalidateCoupon() async {
+    if (_couponCode == null) return;
+    final (discount, error) = await _couponService.applyCoupon(_couponCode!, _subtotal);
+    if (!mounted) return;
+    setState(() {
+      if (error != null) {
+        // Coupon no longer valid (e.g. subtotal dropped below min order)
+        _couponDiscount = 0;
+        _couponCode = null;
+        _couponCtrl.clear();
+        _couponError = error;
+      } else {
+        _couponDiscount = discount;
+        _couponError = null;
+      }
+      _currentTotal = (_subtotal - _couponDiscount + _currentShipping).clamp(0, double.infinity);
+    });
   }
 
   Future<void> _updateQuantity(CartItemModel item, int newQty) async {
@@ -316,6 +341,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   _buildAddressSection(),
                   _buildSectionTitle('Coupons & Offers', Icons.local_offer_outlined),
                   _buildCouponSection(),
+                  _buildBackToCart(),
                   _buildSectionTitle('Order Summary', Icons.receipt_long_outlined),
                   _buildOrderSummary(),
                 ],
@@ -732,105 +758,218 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  // ── BACK TO CART ─────────────────────────────────────────────
+  Widget _buildBackToCart() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.arrow_back_ios_new_rounded, size: 12, color: _teal),
+          const SizedBox(width: 4),
+          Text('Back to Cart',
+              style: TextStyle(fontSize: 12, color: _teal,
+                  fontWeight: FontWeight.w600, decoration: TextDecoration.underline,
+                  decorationColor: _teal)),
+        ]),
+      ),
+    );
+  }
+
   // ── ORDER SUMMARY ────────────────────────────────────────────
   Widget _buildOrderSummary() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Item cards
+      ..._cartItems.map((item) => _buildItemCard(item)),
+      if (_cartItems.isEmpty)
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          decoration: BoxDecoration(
+            color: _surface, borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _border),
+          ),
+          child: Center(child: Text('Your cart is empty',
+              style: TextStyle(fontSize: 13, color: _slate))),
+        ),
+      // Price breakdown card
+      Container(
+        margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _border),
+        ),
+        child: Column(children: [
+          _row('Subtotal (${_cartItems.length} item${_cartItems.length == 1 ? '' : 's'})',
+              _fmt(_subtotal)),
+          if (_couponDiscount > 0) ...[
+            const SizedBox(height: 8),
+            _row('Discount (${_couponCode ?? ''})', '- ${_fmt(_couponDiscount)}',
+                valueColor: _green),
+          ],
+          const SizedBox(height: 8),
+          _row('Shipping', _currentShipping == 0 ? 'FREE' : _fmt(_currentShipping),
+              valueColor: _currentShipping == 0 ? _green : null),
+          Divider(color: _border, height: 20),
+          _row('Total Payable', _fmt(_currentTotal), bold: true),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _buildItemCard(CartItemModel item) {
+    final isUpdating = _updatingItem[item.id] == true;
+    // Variant label e.g. "Red · L"
+    final variant = item.variant;
+    final variantParts = <String>[
+      if (variant?.color != null && variant!.color!.isNotEmpty) variant.color!,
+      if (variant?.size != null && variant!.size!.isNotEmpty) variant.size!,
+    ];
+    final variantLabel = variantParts.join(' · ');
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _border),
+        boxShadow: [BoxShadow(
+          color: Colors.black.withValues(alpha: 0.03),
+          blurRadius: 6, offset: const Offset(0, 2),
+        )],
       ),
-      child: Column(children: [
-        ..._cartItems.map((item) => _buildItemRow(item)),
-        if (_cartItems.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text('Your cart is empty',
-                style: TextStyle(fontSize: 13, color: _slate)),
-          ),
-        Divider(color: _border, height: 16),
-        _row('Subtotal', _fmt(_subtotal)),
-        if (_couponDiscount > 0) ...[
-          const SizedBox(height: 6),
-          _row('Discount (${_couponCode ?? ''})', '-${_fmt(_couponDiscount)}',
-              valueColor: _green),
-        ],
-        const SizedBox(height: 6),
-        _row('Shipping', _currentShipping == 0 ? 'FREE' : _fmt(_currentShipping),
-            valueColor: _currentShipping == 0 ? _green : null),
-        Divider(color: _border, height: 16),
-        _row('Total', _fmt(_currentTotal), bold: true),
-      ]),
-    );
-  }
-
-  Widget _buildItemRow(CartItemModel item) {
-    final isUpdating = _updatingItem[item.id] == true;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Product image
         ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           child: item.displayImage != null
-              ? CachedNetworkImage(imageUrl: item.displayImage!,
-                  width: 52, height: 52, fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(width: 52, height: 52, color: _border),
-                  errorWidget: (_, __, ___) => Container(width: 52, height: 52, color: _border))
-              : Container(width: 52, height: 52, color: _border),
+              ? CachedNetworkImage(
+                  imageUrl: item.displayImage!,
+                  width: 72, height: 80, fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(width: 72, height: 80,
+                      color: _border, child: Icon(Icons.image_outlined,
+                          color: _slate.withValues(alpha: 0.4), size: 24)),
+                  errorWidget: (_, __, ___) => Container(width: 72, height: 80,
+                      color: _border, child: Icon(Icons.image_outlined,
+                          color: _slate.withValues(alpha: 0.4), size: 24)))
+              : Container(width: 72, height: 80, color: _border,
+                  child: Icon(Icons.image_outlined,
+                      color: _slate.withValues(alpha: 0.4), size: 24)),
         ),
         const SizedBox(width: 12),
-        // Name + price
+        // Details
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Name
             Text(item.displayName,
                 maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: _ink)),
-            const SizedBox(height: 4),
-            Text(_fmt(item.unitPrice * item.quantity),
-                style: TextStyle(fontSize: 12, color: _slate, fontWeight: FontWeight.w600)),
+                style: const TextStyle(fontSize: 13,
+                    fontWeight: FontWeight.w600, color: _ink, height: 1.3)),
+            // Variant
+            if (variantLabel.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _teal.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(variantLabel,
+                    style: TextStyle(fontSize: 10, color: _teal,
+                        fontWeight: FontWeight.w500)),
+              ),
+            ],
+            const SizedBox(height: 8),
+            // Unit price
+            Text(_fmt(item.unitPrice),
+                style: TextStyle(fontSize: 11, color: _slate)),
+            const SizedBox(height: 10),
+            // Bottom row: qty controls + item total + remove
+            Row(children: [
+              // Quantity selector
+              if (isUpdating)
+                SizedBox(width: 76, height: 28, child: Center(
+                    child: SizedBox(width: 14, height: 14,
+                        child: CircularProgressIndicator(color: _teal, strokeWidth: 2))))
+              else
+                Container(
+                  height: 28,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _border),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    _qtyBtn(
+                      icon: item.quantity == 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
+                      color: item.quantity == 1 ? Colors.redAccent : _slate,
+                      onTap: () => _updateQuantity(item, item.quantity - 1),
+                      size: 28,
+                    ),
+                    Container(
+                      width: 30,
+                      alignment: Alignment.center,
+                      child: Text('${item.quantity}',
+                          style: const TextStyle(fontSize: 13,
+                              fontWeight: FontWeight.bold, color: _ink)),
+                    ),
+                    _qtyBtn(
+                      icon: Icons.add_rounded,
+                      color: _teal,
+                      onTap: () => _updateQuantity(item, item.quantity + 1),
+                      size: 28,
+                    ),
+                  ]),
+                ),
+              const SizedBox(width: 10),
+              // Item total
+              Text(_fmt(item.unitPrice * item.quantity),
+                  style: const TextStyle(fontSize: 13,
+                      fontWeight: FontWeight.bold, color: _ink)),
+              const Spacer(),
+              // Remove button
+              if (!isUpdating)
+                GestureDetector(
+                  onTap: () => _confirmRemove(item),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.redAccent.withValues(alpha: 0.25)),
+                    ),
+                    child: const Text('Remove',
+                        style: TextStyle(fontSize: 10, color: Colors.redAccent,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ),
+            ]),
           ]),
         ),
-        const SizedBox(width: 8),
-        // Quantity controls
-        if (isUpdating)
-          SizedBox(width: 80, child: Center(
-              child: SizedBox(width: 16, height: 16,
-                  child: CircularProgressIndicator(color: _teal, strokeWidth: 2))))
-        else
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            _qtyBtn(
-              icon: item.quantity == 1 ? Icons.delete_outline : Icons.remove,
-              color: item.quantity == 1 ? Colors.redAccent : _slate,
-              onTap: () => _updateQuantity(item, item.quantity - 1),
-            ),
-            Container(
-              width: 28,
-              alignment: Alignment.center,
-              child: Text('${item.quantity}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _ink)),
-            ),
-            _qtyBtn(
-              icon: Icons.add,
-              color: _teal,
-              onTap: () => _updateQuantity(item, item.quantity + 1),
-            ),
-          ]),
       ]),
     );
   }
 
-  Widget _qtyBtn({required IconData icon, required Color color, required VoidCallback onTap}) {
+  Widget _qtyBtn({required IconData icon, required Color color,
+      required VoidCallback onTap, double size = 26}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 26, height: 26,
+        width: size, height: size,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: color.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.only(
+            topLeft: icon == Icons.add_rounded
+                ? Radius.zero : const Radius.circular(7),
+            bottomLeft: icon == Icons.add_rounded
+                ? Radius.zero : const Radius.circular(7),
+            topRight: icon == Icons.add_rounded
+                ? const Radius.circular(7) : Radius.zero,
+            bottomRight: icon == Icons.add_rounded
+                ? const Radius.circular(7) : Radius.zero,
+          ),
         ),
         child: Icon(icon, size: 14, color: color),
       ),
