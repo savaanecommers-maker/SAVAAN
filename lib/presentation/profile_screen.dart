@@ -71,10 +71,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     try {
-      final loggedIn = await ApiClient.isLoggedIn;
-      if (!loggedIn) { if (mounted) setState(() => _isLoading = false); return; }
-      final user = await _userService.getProfile();
+      // Re-use the already-loaded user from AuthProvider to avoid a duplicate
+      // network call to /api/auth/profile (AuthProvider.loadUser() already
+      // fetches it on app start).
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.loadUser(); // no-op if already loaded; force=false
       if (mounted) {
+        final user = authProvider.user;
         setState(() {
           _user = user;
           _nameController.text  = user?.fullName ?? '';

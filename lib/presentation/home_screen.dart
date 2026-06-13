@@ -402,10 +402,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const CartScreen()))
               .then((_) {
-            if (mounted) {
-              context.read<CartProvider>().loadCart();
-              setState(() => _currentIndex = 0);
-            }
+            // CartScreen reloads the cart in its own initState;
+            // no redundant loadCart() needed here.
+            if (mounted) setState(() => _currentIndex = 0);
           }),
           child: Stack(children: [
             Container(
@@ -746,6 +745,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 ? ClipOval(child: CachedNetworkImage(
                     imageUrl: ApiClient.fixImageUrl(cat.imageUrl) ?? '',
                     width: 62, height: 62, fit: BoxFit.cover,
+                    memCacheWidth: 124,   // 62dp × 2x pixel ratio
+                    memCacheHeight: 124,
                     placeholder: (_, _) => const SizedBox.shrink(),
                     errorWidget: (_, _, _) => Icon(
                         _catIcons[cat.slug] ?? Icons.category_outlined,
@@ -763,13 +764,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   }
 
   // ── TRUST STRIP ──────────────────────────────────────────────
+  static const _trustItems = [
+    {'icon': Icons.verified_outlined,      'label': '100% Authentic'},
+    {'icon': Icons.security_outlined,      'label': 'Secure Pay'},
+    {'icon': Icons.replay_outlined,        'label': 'Easy Returns'},
+    {'icon': Icons.local_shipping_outlined,'label': 'Fast Delivery'},
+  ];
+
   Widget _buildTrustStrip() {
-    final items = [
-      {'icon': Icons.verified_outlined,      'label': '100% Authentic'},
-      {'icon': Icons.security_outlined,      'label': 'Secure Pay'},
-      {'icon': Icons.replay_outlined,        'label': 'Easy Returns'},
-      {'icon': Icons.local_shipping_outlined,'label': 'Fast Delivery'},
-    ];
+    final items = _trustItems;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
@@ -1059,6 +1062,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   ? CachedNetworkImage(
                       imageUrl: p.primaryImage!,
                       height: 130, width: 155, fit: BoxFit.cover,
+                      memCacheWidth: 310,    // 155dp × 2x pixel ratio
+                      memCacheHeight: 260,
                       placeholder: (_, _) => _imgPlaceholder(),
                       errorWidget: (_, _, _) => _imgPlaceholder())
                   : _imgPlaceholder()),
@@ -1768,8 +1773,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
   // ── DRAWER ───────────────────────────────────────────────────
   Widget _buildDrawer() {
-    final wishCount  = context.watch<WishlistProvider>().count;
-
+    // Use Consumer so wishlist/notif badge updates don't rebuild the whole screen.
+    return Consumer<WishlistProvider>(builder: (_, wishProv, _) {
+    final wishCount = wishProv.count;
     return Drawer(
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
@@ -1873,6 +1879,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           onTap: _logout),
         const SizedBox(height: 8),
       ])));
+    }); // Consumer<WishlistProvider>
   }
 
   void _showHelpSheet(BuildContext ctx) {
@@ -1927,8 +1934,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                     .then((_) {
                   if (mounted) {
                     setState(() => _currentIndex = 0);
-                    context.read<CartProvider>().loadCart();
-                    context.read<WishlistProvider>().loadIds();
+                    // Only reload cart after visiting the cart screen —
+                    // CartScreen modifies quantities so a refresh is needed.
+                    // Wishlist IDs are updated optimistically in WishlistProvider,
+                    // so loadIds() on every return is redundant.
+                    if (i == 2) context.read<CartProvider>().loadCart();
                   }
                 });
               },

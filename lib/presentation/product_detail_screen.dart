@@ -419,6 +419,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         child: images.isNotEmpty
             ? CachedNetworkImage(imageUrl: images[_selectedImageIndex],
             fit: BoxFit.cover,
+            memCacheWidth: 800,   // cap decode size — detail image ~full-width
+            memCacheHeight: 800,
             placeholder: (_, _) => _imagePlaceholder(),
             errorWidget: (_, _, _) => _imagePlaceholder())
             : _imagePlaceholder(),
@@ -449,6 +451,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   borderRadius: BorderRadius.circular(9),
                   child: CachedNetworkImage(imageUrl: images[i],
                       fit: BoxFit.cover,
+                      memCacheWidth: 120,   // thumbnails displayed at 60×60 @2x
+                      memCacheHeight: 120,
                       placeholder: (_, _) => const SizedBox.shrink(),
                       errorWidget: (_, _, _) =>
                           Icon(Icons.image_outlined, color: _border)),

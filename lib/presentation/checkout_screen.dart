@@ -849,6 +849,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ? CachedNetworkImage(
                   imageUrl: item.displayImage!,
                   width: 72, height: 80, fit: BoxFit.cover,
+                  memCacheWidth: 144,   // 72dp × 2x pixel ratio
+                  memCacheHeight: 160,
                   placeholder: (_, _) => Container(width: 72, height: 80,
                       color: _border, child: Icon(Icons.image_outlined,
                           color: _slate.withValues(alpha: 0.4), size: 24)),

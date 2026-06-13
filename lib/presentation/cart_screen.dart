@@ -181,6 +181,8 @@ class _CartScreenState extends State<CartScreen> {
             child: item.displayImage != null
                 ? CachedNetworkImage(imageUrl: item.displayImage!,
                     width: 80, height: 80, fit: BoxFit.cover,
+                    memCacheWidth: 160,   // 80dp × 2x pixel ratio
+                    memCacheHeight: 160,
                     placeholder: (_, _) => _imgPlaceholder(),
                     errorWidget: (_, _, _) => _imgPlaceholder())
                 : _imgPlaceholder(),

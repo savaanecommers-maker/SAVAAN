@@ -775,6 +775,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
               child: product.primaryImage != null
                   ? CachedNetworkImage(imageUrl: product.primaryImage!,
                   height: 130, width: double.infinity, fit: BoxFit.cover,
+                  memCacheWidth: 400,   // card is ~half screen width @2x
+                  memCacheHeight: 260,
                   placeholder: (_, _) => _imgPlaceholder(130),
                   errorWidget: (_, _, _) => _imgPlaceholder(130))
                   : _imgPlaceholder(130),
@@ -861,9 +863,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Widget _buildList() {
+    // itemExtent eliminates per-item layout passes and enables O(1) scroll offset math.
+    // 110 = 90px image + 10px vertical padding top+bottom + 10px bottom margin.
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: _filtered.length,
+      itemExtent: 110,
       itemBuilder: (_, i) => _buildListCard(_filtered[i]),
     );
   }
@@ -893,6 +898,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
               child: product.primaryImage != null
                   ? CachedNetworkImage(imageUrl: product.primaryImage!,
                   width: 90, height: 90, fit: BoxFit.cover,
+                  memCacheWidth: 180,   // 90dp × 2x pixel ratio
+                  memCacheHeight: 180,
                   placeholder: (_, _) => _imgPlaceholder(90, width: 90),
                   errorWidget: (_, _, _) => _imgPlaceholder(90, width: 90))
                   : _imgPlaceholder(90, width: 90),

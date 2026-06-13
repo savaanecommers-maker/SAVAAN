@@ -155,6 +155,8 @@ class _WishlistScreenState extends State<WishlistScreen> {
               child: product.primaryImage != null
                   ? CachedNetworkImage(imageUrl: product.primaryImage!,
                       width: 90, height: 90, fit: BoxFit.cover,
+                      memCacheWidth: 180,   // 90dp × 2x pixel ratio
+                      memCacheHeight: 180,
                       placeholder: (_, _) => _imgPlaceholder(),
                       errorWidget: (_, _, _) => _imgPlaceholder())
                   : _imgPlaceholder(),
