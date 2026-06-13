@@ -105,36 +105,6 @@ class AuthService {
     }
   }
 
-  // ── Phone OTP — step 1: send OTP via backend (AWS SNS) ───────
-  Future<String?> sendPhoneOtp({required String phone, String mode = 'login'}) async {
-    final res = await ApiClient.post(
-      '/api/auth/send-otp',
-      {'phone': phone},
-      auth: false,
-    );
-    if (!res.isSuccess) return res.error;
-    return null; // null = success
-  }
-
-  // ── Phone OTP — step 2: verify OTP ──────────────────────────
-  Future<String?> verifyPhoneOtp({
-    required String phone,
-    required String otp,
-    String mode = 'login',
-  }) async {
-    final res = await ApiClient.post(
-      '/api/auth/verify-otp',
-      {'phone': phone, 'otp': otp},
-      auth: false,
-    );
-    if (!res.isSuccess) return res.error;
-    await ApiClient.saveTokens(
-      res.data!['access_token'] as String,
-      res.data!['refresh_token'] as String?,
-    );
-    return null; // null = success
-  }
-
   // ── Sign out ──────────────────────────────────────────────────
   Future<void> signOut() async {
     final refresh = await ApiClient.getRefreshToken();

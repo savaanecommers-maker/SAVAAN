@@ -1,6 +1,4 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../data/auth_service.dart';
 import '../providers/auth_provider.dart';
@@ -23,20 +21,12 @@ class _AuthParentPageState extends State<AuthParentPage>
 
   final TextEditingController _emailController    = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _phoneController    = TextEditingController();
-  final TextEditingController _otpController      = TextEditingController();
 
-  // 'login' | 'signup' | 'forgot' | 'otp'
+  // 'login' | 'signup' | 'forgot'
   String _currentView    = 'login';
-  // 'login' | 'signup' — tracks the mode when the OTP view is active
-  String _otpMode        = 'login';
 
   bool   _isLoading       = false;
   bool   _obscurePassword = true;
-  bool   _otpSent         = false;
-  String _otpPhone        = '';
-  int    _resendSeconds   = 0;
-  Timer? _resendTimer;
 
   late AnimationController _fadeController;
   late Animation<double>   _fadeAnimation;
@@ -59,37 +49,15 @@ class _AuthParentPageState extends State<AuthParentPage>
 
   @override
   void dispose() {
-    _resendTimer?.cancel();
     _fadeController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _phoneController.dispose();
-    _otpController.dispose();
     super.dispose();
   }
 
-  void _startResendTimer() {
-    _resendTimer?.cancel();
-    setState(() => _resendSeconds = 60);
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_resendSeconds <= 1) {
-        t.cancel();
-        if (mounted) setState(() => _resendSeconds = 0);
-      } else {
-        if (mounted) setState(() => _resendSeconds--);
-      }
-    });
-  }
-
-  void _switchView(String view, {String otpMode = 'login'}) {
+  void _switchView(String view) {
     _fadeController.reverse().then((_) {
-      setState(() {
-        _currentView = view;
-        _otpMode     = otpMode;
-        _otpSent     = false;
-        _otpController.clear();
-        _phoneController.clear();
-      });
+      setState(() => _currentView = view);
       _fadeController.forward();
     });
   }
@@ -105,15 +73,8 @@ class _AuthParentPageState extends State<AuthParentPage>
     ]);
   }
 
-  // ── Google sign-in: mode-aware ────────────────────────────────
-  // signInWithGoogle() returns:
-  //   String → explicit error (backend rejected token, network error, etc.)
-  //   null   → EITHER user cancelled picker OR success (tokens saved)
-  // We distinguish by checking isLoggedIn AFTER the call.
   Future<void> _handleGoogleSignIn() async {
-    final mode = (_currentView == 'signup' || _otpMode == 'signup')
-        ? 'signup'
-        : 'login';
+    final mode = _currentView == 'signup' ? 'signup' : 'login';
 
     setState(() => _isLoading = true);
     final error = await _authService.signInWithGoogle(mode: mode);
@@ -137,66 +98,6 @@ class _AuthParentPageState extends State<AuthParentPage>
       final nav = Navigator.of(context);
       await _initProviders();
       nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
-    }
-  }
-
-  // ── Send OTP ──────────────────────────────────────────────────
-  Future<void> _handleSendOtp() async {
-    final phone = _phoneController.text.trim();
-    if (phone.length != 10) {
-      _showSnackBar('Enter a valid 10-digit mobile number', Colors.redAccent);
-      return;
-    }
-    setState(() => _isLoading = true);
-    final fullPhone = '+91$phone';
-    final error = await _authService.sendPhoneOtp(phone: fullPhone);
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    if (error != null) {
-      _showSnackBar(error, Colors.redAccent);
-    } else {
-      setState(() { _otpSent = true; _otpPhone = fullPhone; });
-      _startResendTimer();
-      _showSnackBar('OTP sent to $fullPhone', _teal);
-    }
-  }
-
-  Future<void> _handleResendOtp() async {
-    setState(() => _isLoading = true);
-    final error = await _authService.sendPhoneOtp(phone: _otpPhone);
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    if (error != null) {
-      _showSnackBar(error, Colors.redAccent);
-    } else {
-      _otpController.clear();
-      _startResendTimer();
-      _showSnackBar('OTP resent to $_otpPhone', _teal);
-    }
-  }
-
-  // ── Verify OTP: mode-aware ────────────────────────────────────
-  Future<void> _handleVerifyOtp() async {
-    final otp = _otpController.text.trim();
-    if (otp.length != 6) {
-      _showSnackBar('Enter the 6-digit OTP', Colors.redAccent);
-      return;
-    }
-    setState(() => _isLoading = true);
-    final error = await _authService.verifyPhoneOtp(
-        phone: _otpPhone, otp: otp, mode: _otpMode);
-    setState(() => _isLoading = false);
-    if (error != null) {
-      _showSnackBar(error, Colors.redAccent);
-    } else {
-      _showSnackBar(
-          _otpMode == 'signup' ? 'Welcome to Savaan!' : 'Welcome back!', _teal);
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (mounted) {
-        final nav = Navigator.of(context);
-        await _initProviders();
-        nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
-      }
     }
   }
 
@@ -264,7 +165,7 @@ class _AuthParentPageState extends State<AuthParentPage>
       backgroundColor: Colors.white,
       body: FadeTransition(
         opacity: _fadeAnimation,
-        child: _currentView == 'otp' ? _buildOtpView() : _buildMainView(),
+        child: _buildMainView(),
       ),
     );
   }
@@ -408,22 +309,6 @@ class _AuthParentPageState extends State<AuthParentPage>
               icon: _googleIcon(),
               onTap: _isLoading ? () {} : _handleGoogleSignIn,
             ),
-            const SizedBox(height: 12),
-
-            // ── Mobile buttons ─────────────────────────────────
-            if (isLogin)
-              _buildOutlineButton(
-                label: 'Login with Mobile Number',
-                icon: const Icon(Icons.phone_outlined, size: 20, color: _dark),
-                onTap: () => _switchView('otp', otpMode: 'login'),
-              ),
-            if (isSignup)
-              _buildOutlineButton(
-                label: 'Sign up with Mobile Number',
-                icon: const Icon(Icons.phone_outlined, size: 20, color: _dark),
-                onTap: () => _switchView('otp', otpMode: 'signup'),
-              ),
-
             const SizedBox(height: 24),
 
             GestureDetector(
@@ -447,240 +332,6 @@ class _AuthParentPageState extends State<AuthParentPage>
             const SizedBox(height: 16),
           ],
         ),
-      ),
-    );
-  }
-
-  // ── OTP view (login or signup with mobile) ────────────────────
-  Widget _buildOtpView() {
-    final isSignupMode = _otpMode == 'signup';
-    final title        = isSignupMode ? 'Sign Up with Mobile' : 'Login with Mobile';
-    final subtitle     = isSignupMode
-        ? 'Create your account with OTP'
-        : 'Verify your mobile number to sign in';
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              onTap: () => _switchView(isSignupMode ? 'signup' : 'login'),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  border: Border.all(color: _borderColor),
-                  borderRadius: BorderRadius.circular(10),
-                  color: Colors.white.withValues(alpha: .8),
-                ),
-                child: const Icon(Icons.arrow_back, size: 20, color: _dark),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Mode badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: (isSignupMode
-                      ? const Color(0xFF6366F1)
-                      : _teal)
-                  .withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: (isSignupMode
-                        ? const Color(0xFF6366F1)
-                        : _teal)
-                    .withValues(alpha: 0.3),
-              ),
-            ),
-            child: Text(
-              isSignupMode ? '✦ NEW ACCOUNT' : '✦ SIGN IN',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: isSignupMode ? const Color(0xFF6366F1) : _teal,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          Image.asset('assets/logo.png', height: 110,
-              errorBuilder: (_, _, _) => Container(
-                height: 110, width: 110,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_teal, _green]),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(Icons.diamond_outlined,
-                    size: 40, color: Colors.white),
-              )),
-          const SizedBox(height: 3),
-          ShaderMask(
-            shaderCallback: (bounds) => const LinearGradient(
-              colors: [Color(0xFF0D9488), Color(0xFF22C55E)],
-              begin: Alignment.centerLeft, end: Alignment.centerRight,
-            ).createShader(bounds),
-            blendMode: BlendMode.srcIn,
-            child: const Text('S A V A A N',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
-                    letterSpacing: 6, color: Colors.white)),
-          ),
-          const SizedBox(height: 4),
-          const Text('Luxury & Trust',
-              style: TextStyle(fontSize: 12, color: _textGrey, letterSpacing: 1.5)),
-          const SizedBox(height: 6),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Container(width: 40, height: 1, color: _borderColor),
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(Icons.diamond, size: 10, color: _teal)),
-            Container(width: 40, height: 1, color: _borderColor),
-          ]),
-          const SizedBox(height: 28),
-
-          Text(title,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold,
-                  color: _dark)),
-          const SizedBox(height: 8),
-          Text(subtitle,
-              style: const TextStyle(fontSize: 13, color: _textGrey),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 28),
-
-          // Phone input
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: _borderColor),
-              borderRadius: BorderRadius.circular(14),
-              color: const Color(0xFFF8FAFC).withValues(alpha: .9),
-            ),
-            child: Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-                decoration: const BoxDecoration(
-                    border: Border(right: BorderSide(color: _borderColor))),
-                child: const Row(children: [
-                  Text('🇮🇳', style: TextStyle(fontSize: 20)),
-                  SizedBox(width: 6),
-                  Text('+91', style: TextStyle(fontWeight: FontWeight.w600, color: _dark)),
-                  SizedBox(width: 4),
-                  Icon(Icons.keyboard_arrow_down, size: 18, color: _textGrey),
-                ]),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
-                    hintText: 'Enter Mobile Number',
-                    hintStyle: TextStyle(color: Color(0xFFCBD5E1)),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 14),
-                  ),
-                ),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 24),
-
-          // OTP field (shown after OTP is sent)
-          if (_otpSent) ...[
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: _borderColor),
-                borderRadius: BorderRadius.circular(14),
-                color: const Color(0xFFF8FAFC).withValues(alpha: .9),
-              ),
-              child: TextField(
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.bold,
-                    letterSpacing: 12, color: _dark),
-                decoration: const InputDecoration(
-                  hintText: '------',
-                  hintStyle: TextStyle(color: Color(0xFFCBD5E1), letterSpacing: 12),
-                  border: InputBorder.none,
-                  counterText: '',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildGradientButton(
-              label: isSignupMode ? 'VERIFY & CREATE ACCOUNT' : 'VERIFY & LOGIN',
-              onTap: _isLoading ? null : _handleVerifyOtp,
-            ),
-            const SizedBox(height: 12),
-            _resendSeconds > 0
-              ? Text(
-                  'Resend OTP in ${_resendSeconds}s',
-                  style: const TextStyle(color: _textGrey, fontSize: 13),
-                )
-              : TextButton(
-                  onPressed: _isLoading ? null : _handleResendOtp,
-                  child: const Text('Resend OTP',
-                      style: TextStyle(color: _teal, fontWeight: FontWeight.w600)),
-                ),
-          ] else
-            _buildGradientButton(
-              label: 'SEND OTP',
-              onTap: _isLoading ? null : _handleSendOtp,
-            ),
-
-          const SizedBox(height: 20),
-
-          Row(children: [
-            const Expanded(child: Divider(color: _borderColor)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('OR',
-                  style: TextStyle(
-                      color: _textGrey.withValues(alpha: .7), fontSize: 12)),
-            ),
-            const Expanded(child: Divider(color: _borderColor)),
-          ]),
-          const SizedBox(height: 16),
-
-          _buildOutlineButton(
-            label: isSignupMode ? 'Sign up with Google' : 'Continue with Google',
-            icon: _googleIcon(),
-            onTap: _isLoading ? () {} : _handleGoogleSignIn,
-          ),
-
-          const SizedBox(height: 20),
-
-          GestureDetector(
-            onTap: () => _switchView(isSignupMode ? 'login' : 'signup'),
-            child: RichText(
-              text: TextSpan(
-                text: isSignupMode
-                    ? 'Already have an account?  '
-                    : "Don't have an account?  ",
-                style: const TextStyle(color: _textGrey, fontSize: 14),
-                children: [
-                  TextSpan(
-                    text: isSignupMode ? 'Login' : 'Sign Up',
-                    style: const TextStyle(color: _teal, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 28),
-          _buildTrustBadges(),
-          const SizedBox(height: 16),
-        ],
       ),
     );
   }
