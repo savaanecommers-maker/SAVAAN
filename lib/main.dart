@@ -123,7 +123,6 @@ class MyApp extends StatelessWidget {
         theme: AppTheme.theme,
         home: const SplashScreen(),
         routes: {
-          '/':           (_) => const HomeScreen(),
           '/categories': (_) => const CategoriesScreen(),
           '/cart':       (_) => const CartScreen(),
           '/wishlist':   (_) => const WishlistScreen(),

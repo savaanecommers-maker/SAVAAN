@@ -15,7 +15,7 @@ Widget buildBottomNav(BuildContext context, int activeIndex) {
     {'icon': Icons.person_outline_rounded, 'active': Icons.person_rounded,        'label': 'Profile'},
   ];
 
-  final routes = ['/', '/categories', '/cart', '/wishlist', '/profile'];
+  final routes = ['', '/categories', '/cart', '/wishlist', '/profile'];
 
   return Container(
     decoration: BoxDecoration(
