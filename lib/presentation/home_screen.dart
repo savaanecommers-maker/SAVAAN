@@ -1065,7 +1065,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                           imageUrl: p.primaryImage!,
                           fit: BoxFit.contain,
                           memCacheWidth: 310,
-                          memCacheHeight: 260,
                           placeholder: (_, _) => _imgPlaceholder(),
                           errorWidget: (_, _, _) => _imgPlaceholder()))
                   : _imgPlaceholder()),
