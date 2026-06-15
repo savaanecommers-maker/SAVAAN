@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
 import 'product_detail_screen.dart';
+import 'cart_screen.dart';
+import 'categories_screen.dart';
+import 'profile_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -311,7 +314,15 @@ class _WishlistScreenState extends State<WishlistScreen> {
             children: List.generate(items.length, (i) {
               final isActive = i == activeIndex;
               return GestureDetector(
-                onTap: () { if (i == 0) Navigator.pop(context); },
+                onTap: () {
+                  if (i == 3) return; // already on Wishlist
+                  if (i == 0) { Navigator.popUntil(context, (r) => r.isFirst); return; }
+                  Widget screen;
+                  if (i == 1) screen = const CategoriesScreen();
+                  else if (i == 2) screen = const CartScreen();
+                  else screen = const ProfileScreen();
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+                },
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   // Cart tab gets live badge
                   if (i == 2)

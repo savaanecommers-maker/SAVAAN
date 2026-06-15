@@ -4,6 +4,9 @@ import '../data/api_client.dart';
 import '../data/category_service.dart';
 import '../models/category_model.dart';
 import 'subcategory_screen.dart';
+import 'cart_screen.dart';
+import 'wishlist_screen.dart';
+import 'profile_screen.dart';
 
 /// Level 1 screen — premium parent-category card grid.
 /// Tapping a card opens [SubcategoryScreen] (Level 2).
@@ -245,7 +248,15 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             children: List.generate(navItems.length, (i) {
               final isActive = i == activeIndex;
               return GestureDetector(
-                onTap: () { if (i == 0) Navigator.pop(context); },
+                onTap: () {
+                  if (i == 0) { Navigator.pop(context); return; }
+                  if (i == 1) return; // already on Categories
+                  Widget screen;
+                  if (i == 2) screen = const CartScreen();
+                  else if (i == 3) screen = const WishlistScreen();
+                  else screen = const ProfileScreen();
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+                },
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(
                     isActive

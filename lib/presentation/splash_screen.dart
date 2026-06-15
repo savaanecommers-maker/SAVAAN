@@ -21,13 +21,11 @@ class _SplashScreenState extends State<SplashScreen>
 
   late AnimationController _logoCtrl;
   late AnimationController _textCtrl;
-  late AnimationController _dotsCtrl;
 
   late Animation<double> _logoScale;
   late Animation<double> _logoFade;
   late Animation<double> _textFade;
   late Animation<Offset>  _textSlide;
-  late Animation<double> _dotsFade;
 
   @override
   void initState() {
@@ -51,12 +49,6 @@ class _SplashScreenState extends State<SplashScreen>
         begin: const Offset(0, 0.18), end: Offset.zero).animate(
         CurvedAnimation(parent: _textCtrl, curve: Curves.easeOut));
 
-    // Dots: fade in last
-    _dotsCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 400));
-    _dotsFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _dotsCtrl, curve: Curves.easeIn));
-
     _startSequence();
   }
 
@@ -65,9 +57,7 @@ class _SplashScreenState extends State<SplashScreen>
     _logoCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 500));
     _textCtrl.forward();
-    await Future.delayed(const Duration(milliseconds: 400));
-    _dotsCtrl.forward();
-    await Future.delayed(const Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 1400));
     _navigate();
   }
 
@@ -131,7 +121,6 @@ class _SplashScreenState extends State<SplashScreen>
   void dispose() {
     _logoCtrl.dispose();
     _textCtrl.dispose();
-    _dotsCtrl.dispose();
     super.dispose();
   }
 
@@ -289,51 +278,6 @@ class _SplashScreenState extends State<SplashScreen>
 
               const Spacer(),
 
-              // ── 3 progress dots — centered, above bottom edge ────
-              FadeTransition(
-                opacity: _dotsFade,
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: screenH * 0.065),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Active dot — teal/green gradient pill
-                        Container(
-                          width: screenW * 0.072,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF0D9488), Color(0xFF16A34A)],
-                            ),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                        SizedBox(width: screenW * 0.016),
-                        // Inactive dot 1
-                        Container(
-                          width: screenW * 0.022,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCBD5E1),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                        SizedBox(width: screenW * 0.016),
-                        // Inactive dot 2
-                        Container(
-                          width: screenW * 0.022,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCBD5E1),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
 
             ],
           ),
