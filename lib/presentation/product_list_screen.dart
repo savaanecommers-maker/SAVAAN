@@ -779,7 +779,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 child: product.primaryImage != null
                     ? CachedNetworkImage(imageUrl: product.primaryImage!,
                     fit: BoxFit.contain,
-                    memCacheWidth: 400,
+                    memCacheWidth: 280,
                     placeholder: (_, _) => _imgPlaceholder(140),
                     errorWidget: (_, _, _) => _imgPlaceholder(140))
                     : _imgPlaceholder(140),

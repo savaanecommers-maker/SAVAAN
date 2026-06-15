@@ -37,6 +37,9 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Cap image memory cache at 60 MB to prevent OOM crashes on mid-range devices.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 60 * 1024 * 1024;
+
   // Pre-warm token cache before app starts so splash reads are instant
   ApiClient.getAccessToken().catchError((_) => null);
 
