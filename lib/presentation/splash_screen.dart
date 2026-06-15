@@ -57,8 +57,22 @@ class _SplashScreenState extends State<SplashScreen>
     _logoCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 500));
     _textCtrl.forward();
-    await Future.delayed(const Duration(milliseconds: 1400));
-    _navigate();
+    await Future.delayed(const Duration(milliseconds: 900));
+    try {
+      await _navigate().timeout(const Duration(seconds: 5));
+    } catch (_) {
+      _forceNavigate();
+    }
+  }
+
+  void _forceNavigate() {
+    if (!mounted) return;
+    Navigator.pushReplacement(context, PageRouteBuilder(
+      pageBuilder: (_, _, _) => const AuthParentPage(),
+      transitionsBuilder: (_, anim, _, child) =>
+          FadeTransition(opacity: anim, child: child),
+      transitionDuration: const Duration(milliseconds: 500),
+    ));
   }
 
   Future<void> _navigate() async {
@@ -72,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen>
     ).catchError((_) {});
 
     // Small delay to let settings come back if backend is fast
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 300));
 
     if (!mounted) return;
 
