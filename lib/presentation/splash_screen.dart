@@ -27,6 +27,8 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _textFade;
   late Animation<Offset>  _textSlide;
 
+  bool _navigated = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,25 +52,30 @@ class _SplashScreenState extends State<SplashScreen>
         CurvedAnimation(parent: _textCtrl, curve: Curves.easeOut));
 
     _startSequence();
+
+    // Absolute failsafe — always navigate after 6s no matter what
+    Future.delayed(const Duration(seconds: 6), () => _doNavigate(null));
   }
 
   Future<void> _startSequence() async {
     await Future.delayed(const Duration(milliseconds: 200));
-    _logoCtrl.forward();
+    if (mounted) _logoCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 500));
-    _textCtrl.forward();
+    if (mounted) _textCtrl.forward();
     await Future.delayed(const Duration(milliseconds: 900));
     try {
-      await _navigate().timeout(const Duration(seconds: 5));
+      await _navigate();
     } catch (_) {
-      _forceNavigate();
+      _doNavigate(null);
     }
   }
 
-  void _forceNavigate() {
-    if (!mounted) return;
+  // Single navigation point — guards against double-push
+  void _doNavigate(Widget? screen) {
+    if (!mounted || _navigated) return;
+    _navigated = true;
     Navigator.pushReplacement(context, PageRouteBuilder(
-      pageBuilder: (_, _, _) => const AuthParentPage(),
+      pageBuilder: (_, _, _) => screen ?? const AuthParentPage(),
       transitionsBuilder: (_, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
       transitionDuration: const Duration(milliseconds: 500),
@@ -92,43 +99,31 @@ class _SplashScreenState extends State<SplashScreen>
 
     // ── Maintenance mode check ────────────────────────────────────
     if (settingsProvider.maintenanceMode) {
-      Navigator.pushReplacement(context, PageRouteBuilder(
-        pageBuilder: (_, _, _) => const _MaintenanceScreen(),
-        transitionsBuilder: (_, anim, _, child) =>
-            FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 500),
-      ));
+      _doNavigate(const _MaintenanceScreen());
       return;
     }
 
     // ── Apply shipping settings to CartProvider ───────────────────
-    context.read<CartProvider>().updateShippingSettings(
-      settingsProvider.shippingCharge,
-      settingsProvider.freeShippingAbove,
-    );
+    if (mounted) {
+      context.read<CartProvider>().updateShippingSettings(
+        settingsProvider.shippingCharge,
+        settingsProvider.freeShippingAbove,
+      );
+    }
 
     bool loggedIn = false;
     try {
       loggedIn = await ApiClient.isLoggedIn;
     } catch (_) {}
 
-    if (!mounted) return;
-
-    if (loggedIn) {
+    if (loggedIn && mounted) {
       context.read<AuthProvider>().loadUser();
       context.read<CartProvider>().loadCart();
       context.read<WishlistProvider>().loadIds();
       context.read<ProductProvider>().loadHomeData();
     }
 
-    if (!mounted) return;
-    Navigator.pushReplacement(context, PageRouteBuilder(
-      pageBuilder: (_, _, _) =>
-          loggedIn ? const HomeScreen() : const AuthParentPage(),
-      transitionsBuilder: (_, anim, _, child) =>
-          FadeTransition(opacity: anim, child: child),
-      transitionDuration: const Duration(milliseconds: 500),
-    ));
+    _doNavigate(loggedIn ? const HomeScreen() : const AuthParentPage());
   }
 
   @override
