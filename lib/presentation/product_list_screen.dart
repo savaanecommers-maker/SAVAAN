@@ -772,14 +772,20 @@ class _ProductListScreenState extends State<ProductListScreen> {
           Stack(children: [
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              child: product.primaryImage != null
-                  ? CachedNetworkImage(imageUrl: product.primaryImage!,
-                  height: 130, width: double.infinity, fit: BoxFit.cover,
-                  memCacheWidth: 400,   // card is ~half screen width @2x
-                  memCacheHeight: 260,
-                  placeholder: (_, _) => _imgPlaceholder(130),
-                  errorWidget: (_, _, _) => _imgPlaceholder(130))
-                  : _imgPlaceholder(130),
+              child: AspectRatio(
+                aspectRatio: 1.0,
+                child: Container(
+                  color: const Color(0xFFF8FAFC),
+                  child: product.primaryImage != null
+                      ? CachedNetworkImage(imageUrl: product.primaryImage!,
+                      fit: BoxFit.contain,
+                      memCacheWidth: 400,
+                      memCacheHeight: 400,
+                      placeholder: (_, _) => _imgPlaceholder(null),
+                      errorWidget: (_, _, _) => _imgPlaceholder(null))
+                      : _imgPlaceholder(null),
+                ),
+              ),
             ),
             if (discount > 0)
               Positioned(top: 8, left: 8,
@@ -897,8 +903,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
               borderRadius: BorderRadius.circular(10),
               child: product.primaryImage != null
                   ? CachedNetworkImage(imageUrl: product.primaryImage!,
-                  width: 90, height: 90, fit: BoxFit.cover,
-                  memCacheWidth: 180,   // 90dp × 2x pixel ratio
+                  width: 90, height: 90, fit: BoxFit.contain,
+                  memCacheWidth: 180,
                   memCacheHeight: 180,
                   placeholder: (_, _) => _imgPlaceholder(90, width: 90),
                   errorWidget: (_, _, _) => _imgPlaceholder(90, width: 90))
@@ -978,12 +984,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  Widget _imgPlaceholder(double height, {double? width}) => Container(
+  Widget _imgPlaceholder(double? height, {double? width}) => Container(
     height: height,
     width: width,
     color: _surface,
     child: Icon(Icons.image_outlined,
-        size: height * 0.3, color: _border),
+        size: (height ?? 90) * 0.3, color: _border),
   );
 
   Widget _buildEmpty() {

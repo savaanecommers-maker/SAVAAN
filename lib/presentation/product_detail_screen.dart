@@ -418,8 +418,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         color: _surface,
         child: images.isNotEmpty
             ? CachedNetworkImage(imageUrl: images[_selectedImageIndex],
-            fit: BoxFit.cover,
-            memCacheWidth: 800,   // cap decode size — detail image ~full-width
+            fit: BoxFit.contain,
+            memCacheWidth: 800,
             memCacheHeight: 800,
             placeholder: (_, _) => _imagePlaceholder(),
             errorWidget: (_, _, _) => _imagePlaceholder())

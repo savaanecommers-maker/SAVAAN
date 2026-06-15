@@ -1059,13 +1059,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               child: p.primaryImage != null
-                  ? CachedNetworkImage(
-                      imageUrl: p.primaryImage!,
-                      height: 130, width: 155, fit: BoxFit.cover,
-                      memCacheWidth: 310,    // 155dp × 2x pixel ratio
-                      memCacheHeight: 260,
-                      placeholder: (_, _) => _imgPlaceholder(),
-                      errorWidget: (_, _, _) => _imgPlaceholder())
+                  ? Container(
+                      height: 130, width: 155, color: _surface,
+                      child: CachedNetworkImage(
+                          imageUrl: p.primaryImage!,
+                          fit: BoxFit.contain,
+                          memCacheWidth: 310,
+                          memCacheHeight: 260,
+                          placeholder: (_, _) => _imgPlaceholder(),
+                          errorWidget: (_, _, _) => _imgPlaceholder()))
                   : _imgPlaceholder()),
             if (discount > 0)
               Positioned(top: 8, left: 8,

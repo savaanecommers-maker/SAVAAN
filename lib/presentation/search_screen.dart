@@ -592,7 +592,7 @@ class _SearchScreenState extends State<SearchScreen> {
             borderRadius: BorderRadius.circular(8),
             child: product.primaryImage != null
                 ? CachedNetworkImage(imageUrl: product.primaryImage!,
-                    width: 56, height: 56, fit: BoxFit.cover,
+                    width: 56, height: 56, fit: BoxFit.contain,
                     placeholder: (_, _) => _imgPlaceholder(),
                     errorWidget: (_, _, _) => _imgPlaceholder())
                 : _imgPlaceholder(),

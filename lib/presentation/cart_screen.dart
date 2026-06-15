@@ -180,7 +180,7 @@ class _CartScreenState extends State<CartScreen> {
             borderRadius: BorderRadius.circular(10),
             child: item.displayImage != null
                 ? CachedNetworkImage(imageUrl: item.displayImage!,
-                    width: 80, height: 80, fit: BoxFit.cover,
+                    width: 80, height: 80, fit: BoxFit.contain,
                     memCacheWidth: 160,   // 80dp × 2x pixel ratio
                     memCacheHeight: 160,
                     placeholder: (_, _) => _imgPlaceholder(),
