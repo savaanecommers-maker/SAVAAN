@@ -772,19 +772,18 @@ class _ProductListScreenState extends State<ProductListScreen> {
           Stack(children: [
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              child: AspectRatio(
-                aspectRatio: 1.0,
-                child: Container(
-                  color: const Color(0xFFF8FAFC),
-                  child: product.primaryImage != null
-                      ? CachedNetworkImage(imageUrl: product.primaryImage!,
-                      fit: BoxFit.contain,
-                      memCacheWidth: 400,
-                      memCacheHeight: 400,
-                      placeholder: (_, _) => _imgPlaceholder(null),
-                      errorWidget: (_, _, _) => _imgPlaceholder(null))
-                      : _imgPlaceholder(null),
-                ),
+              child: Container(
+                height: 140,
+                width: double.infinity,
+                color: const Color(0xFFF8FAFC),
+                child: product.primaryImage != null
+                    ? CachedNetworkImage(imageUrl: product.primaryImage!,
+                    fit: BoxFit.contain,
+                    memCacheWidth: 400,
+                    memCacheHeight: 280,
+                    placeholder: (_, _) => _imgPlaceholder(140),
+                    errorWidget: (_, _, _) => _imgPlaceholder(140))
+                    : _imgPlaceholder(140),
               ),
             ),
             if (discount > 0)
@@ -984,12 +983,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  Widget _imgPlaceholder(double? height, {double? width}) => Container(
+  Widget _imgPlaceholder(double height, {double? width}) => Container(
     height: height,
     width: width,
     color: _surface,
     child: Icon(Icons.image_outlined,
-        size: (height ?? 90) * 0.3, color: _border),
+        size: height * 0.3, color: _border),
   );
 
   Widget _buildEmpty() {
