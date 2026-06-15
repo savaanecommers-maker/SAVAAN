@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'data/api_client.dart';
 import 'presentation/splash_screen.dart';
+import 'presentation/home_screen.dart';
+import 'presentation/categories_screen.dart';
+import 'presentation/cart_screen.dart';
+import 'presentation/wishlist_screen.dart';
+import 'presentation/profile_screen.dart';
 import 'presentation/notification_screen.dart';
 import 'presentation/orders_screen.dart';
 import 'providers/auth_provider.dart';
@@ -117,6 +122,13 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
         home: const SplashScreen(),
+        routes: {
+          '/':           (_) => const HomeScreen(),
+          '/categories': (_) => const CategoriesScreen(),
+          '/cart':       (_) => const CartScreen(),
+          '/wishlist':   (_) => const WishlistScreen(),
+          '/profile':    (_) => const ProfileScreen(),
+        },
       ),
     );
   }

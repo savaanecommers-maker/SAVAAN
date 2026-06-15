@@ -12,6 +12,7 @@ import '../providers/product_provider.dart';
 import '../providers/wishlist_provider.dart';
 import 'address_screen.dart';
 import 'auth_screens.dart';
+import 'bottom_nav.dart';
 import 'notification_screen.dart';
 import 'orders_screen.dart';
 import 'help_support_screen.dart';
@@ -337,6 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      bottomNavigationBar: buildBottomNav(context, 4),
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: _teal))

@@ -4,9 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
 import 'product_detail_screen.dart';
-import 'cart_screen.dart';
-import 'categories_screen.dart';
-import 'profile_screen.dart';
+import 'bottom_nav.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -86,7 +84,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                         ),
                       ),
           ),
-          _buildBottomNav(),
+          buildBottomNav(context, 3),
         ]),
       ),
     );
@@ -289,91 +287,4 @@ class _WishlistScreenState extends State<WishlistScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
-    final items = [
-      {'icon': Icons.home_outlined, 'active': Icons.home_rounded, 'label': 'Home'},
-      {'icon': Icons.grid_view_outlined, 'active': Icons.grid_view_rounded, 'label': 'Categories'},
-      {'icon': Icons.shopping_cart_outlined, 'active': Icons.shopping_cart_rounded, 'label': 'Cart'},
-      {'icon': Icons.favorite_outline, 'active': Icons.favorite_rounded, 'label': 'Wishlist'},
-      {'icon': Icons.person_outline_rounded, 'active': Icons.person_rounded, 'label': 'Profile'},
-    ];
-    const activeIndex = 3;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16, offset: const Offset(0, -4))],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (i) {
-              final isActive = i == activeIndex;
-              return GestureDetector(
-                onTap: () {
-                  if (i == 3) return; // already on Wishlist
-                  if (i == 0) { Navigator.popUntil(context, (r) => r.isFirst); return; }
-                  Widget screen;
-                  if (i == 1) screen = const CategoriesScreen();
-                  else if (i == 2) screen = const CartScreen();
-                  else screen = const ProfileScreen();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-                },
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  // Cart tab gets live badge
-                  if (i == 2)
-                    Consumer<CartProvider>(
-                      builder: (_, cart, _) => Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Icon(items[i]['icon'] as IconData,
-                              size: 24, color: _slate),
-                          if (cart.itemCount > 0)
-                            Positioned(
-                              right: -5, top: -5,
-                              child: Container(
-                                padding: const EdgeInsets.all(3),
-                                decoration: const BoxDecoration(
-                                    color: Colors.redAccent,
-                                    shape: BoxShape.circle),
-                                child: Text(
-                                  cart.itemCount > 9
-                                      ? '9+' : '${cart.itemCount}',
-                                  style: const TextStyle(
-                                      color: Colors.white, fontSize: 8,
-                                      fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                        ],
-                      ),
-                    )
-                  else
-                    Icon(
-                      isActive
-                          ? items[i]['active'] as IconData
-                          : items[i]['icon'] as IconData,
-                      size: 24, color: isActive ? _teal : _slate),
-                  const SizedBox(height: 3),
-                  Text(items[i]['label'] as String,
-                      style: TextStyle(fontSize: 10,
-                          color: isActive ? _teal : _slate,
-                          fontWeight: isActive
-                              ? FontWeight.w600 : FontWeight.normal)),
-                  if (isActive)
-                    Container(margin: const EdgeInsets.only(top: 3),
-                        width: 4, height: 4,
-                        decoration: const BoxDecoration(
-                            color: _teal, shape: BoxShape.circle)),
-                ]),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
 }

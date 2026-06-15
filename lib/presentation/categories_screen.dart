@@ -4,9 +4,7 @@ import '../data/api_client.dart';
 import '../data/category_service.dart';
 import '../models/category_model.dart';
 import 'subcategory_screen.dart';
-import 'cart_screen.dart';
-import 'wishlist_screen.dart';
-import 'profile_screen.dart';
+import 'bottom_nav.dart';
 
 /// Level 1 screen — premium parent-category card grid.
 /// Tapping a card opens [SubcategoryScreen] (Level 2).
@@ -55,7 +53,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           Expanded(child: _buildBody()),
         ]),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: buildBottomNav(context, 1),
     );
   }
 
@@ -220,71 +218,4 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     }
   }
 
-  // ── Bottom nav ────────────────────────────────────────────────
-  Widget _buildBottomNav() {
-    final navItems = [
-      {'icon': Icons.home_outlined,          'active': Icons.home_rounded,          'label': 'Home'},
-      {'icon': Icons.grid_view_outlined,     'active': Icons.grid_view_rounded,     'label': 'Categories'},
-      {'icon': Icons.shopping_cart_outlined, 'active': Icons.shopping_cart_rounded, 'label': 'Cart'},
-      {'icon': Icons.favorite_outline,       'active': Icons.favorite_rounded,      'label': 'Wishlist'},
-      {'icon': Icons.person_outline_rounded, 'active': Icons.person_rounded,        'label': 'Profile'},
-    ];
-    const activeIndex = 1;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(
-          color: Colors.black.withValues(alpha: 0.06),
-          blurRadius: 16, offset: const Offset(0, -4),
-        )],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(navItems.length, (i) {
-              final isActive = i == activeIndex;
-              return GestureDetector(
-                onTap: () {
-                  if (i == 0) { Navigator.pop(context); return; }
-                  if (i == 1) return; // already on Categories
-                  Widget screen;
-                  if (i == 2) screen = const CartScreen();
-                  else if (i == 3) screen = const WishlistScreen();
-                  else screen = const ProfileScreen();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-                },
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(
-                    isActive
-                        ? (navItems[i]['active'] as IconData)
-                        : (navItems[i]['icon']   as IconData),
-                    size: 24,
-                    color: isActive ? _teal : _slate,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(navItems[i]['label'] as String,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: isActive ? _teal : _slate,
-                        fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                      )),
-                  if (isActive)
-                    Container(
-                      margin: const EdgeInsets.only(top: 3),
-                      width: 4, height: 4,
-                      decoration: const BoxDecoration(
-                          color: _teal, shape: BoxShape.circle),
-                    ),
-                ]),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
 }

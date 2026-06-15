@@ -5,6 +5,7 @@ import '../data/api_client.dart';
 import '../providers/cart_provider.dart';
 import '../providers/settings_provider.dart';
 import 'checkout_screen.dart';
+import 'bottom_nav.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -56,6 +57,7 @@ class _CartScreenState extends State<CartScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      bottomNavigationBar: buildBottomNav(context, 2),
       body: SafeArea(
         child: Column(children: [
           _buildTopBar(cart),
