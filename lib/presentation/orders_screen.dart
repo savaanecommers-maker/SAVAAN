@@ -147,8 +147,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       child: item.productImage != null
                           ? CachedNetworkImage(imageUrl: item.productImage!,
                               width: 44, height: 44, fit: BoxFit.cover,
-                              memCacheWidth: 88,    // 44dp × 2x pixel ratio
-                              memCacheHeight: 88,
+                              memCacheWidth: 88,
                               placeholder: (_, url) => Container(width: 44, height: 44, color: _border),
                               errorWidget: (_, url, err) =>
                                   Container(width: 44, height: 44, color: _border))

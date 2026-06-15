@@ -850,7 +850,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   imageUrl: item.displayImage!,
                   width: 72, height: 80, fit: BoxFit.contain,
                   memCacheWidth: 144,
-                  memCacheHeight: 160,
                   placeholder: (_, _) => Container(width: 72, height: 80,
                       color: _border, child: Icon(Icons.image_outlined,
                           color: _slate.withValues(alpha: 0.4), size: 24)),
