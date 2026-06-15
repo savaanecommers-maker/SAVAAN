@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/api_client.dart';
 import '../data/product_service.dart';
+import '../data/cart_service.dart';
 import '../models/cart_item_model.dart';
 import '../models/product_model.dart';
 import '../providers/cart_provider.dart';
@@ -333,34 +334,50 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<void> _buyNow(ProductModel p) async {
-    // Capture context-dependent objects before any await
     final cart = context.read<CartProvider>();
     final nav  = Navigator.of(context);
-    // Do NOT add to cart — Buy Now goes directly to checkout without touching cart
-    final userId = await ApiClient.getTokenPayload().then((p) => p?['id'] as String? ?? '');
-    if (!mounted) return;
-    // Build a single-item cart for checkout
-    final cartItem = CartItemModel(
-      id:        'buynow_${widget.productId}_${_selectedVariant?.id ?? ""}',
-      userId:    userId,
+
+    setState(() => _addingToCart = true);
+
+    // Add to cart via API so we get a real UUID — required for +/- and Remove in checkout
+    final error = await cart.addToCart(
       productId: widget.productId,
       variantId: _selectedVariant?.id,
       quantity:  _quantity,
-      product:   p,
-      variant:   _selectedVariant,
     );
-    // Use CartProvider shipping settings so admin-configurable free-shipping threshold is respected
-    // Use variant price override if set, else product effective price
+
+    if (!mounted) return;
+    setState(() => _addingToCart = false);
+
+    if (error != null) {
+      _showSnackBar(error, Colors.redAccent);
+      return;
+    }
+
+    // Reload cart to get the real cart item with its DB UUID
+    final items = await CartService().getCartItems();
+    if (!mounted) return;
+
+    // Find the item we just added
+    final cartItem = items.firstWhere(
+      (i) => i.productId == widget.productId &&
+             i.variantId == _selectedVariant?.id,
+      orElse: () => items.isNotEmpty ? items.last : CartItemModel(
+        id: '', userId: '', productId: widget.productId,
+        quantity: _quantity, product: p, variant: _selectedVariant,
+      ),
+    );
+
     final unitPrice   = _selectedVariant?.priceOverride ?? p.effectivePrice;
     final subtotal    = unitPrice * _quantity;
     final shippingAmt = subtotal >= cart.freeShippingAbove ? 0.0 : cart.shippingCharge;
-    nav.push(
-        MaterialPageRoute(builder: (_) => CheckoutScreen(
-          cartItems: [cartItem],
-          subtotal:  subtotal,
-          shipping:  shippingAmt,
-          total:     subtotal + shippingAmt,
-        )));
+
+    nav.push(MaterialPageRoute(builder: (_) => CheckoutScreen(
+      cartItems: [cartItem],
+      subtotal:  subtotal,
+      shipping:  shippingAmt,
+      total:     subtotal + shippingAmt,
+    )));
   }
 
   void _showSnackBar(String msg, Color color) {
