@@ -384,18 +384,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           ]),
         ])),
         // Notification bell
-        GestureDetector(
-          onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const NotificationsScreen()))
-              .then((_) { if (mounted) _fetchNotifCount(); }),
-          child: Stack(children: [
-            _iconBox(Icons.notifications_outlined),
-            if (_unreadNotifCount > 0)
-              Positioned(right: 6, top: 6,
-                child: Container(width: 7, height: 7,
-                    decoration: const BoxDecoration(
-                        color: Colors.redAccent, shape: BoxShape.circle))),
-          ])),
+        Stack(children: [
+          _iconBox(Icons.notifications_outlined, onTap: () =>
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const NotificationsScreen()))
+                  .then((_) { if (mounted) _fetchNotifCount(); })),
+          if (_unreadNotifCount > 0)
+            Positioned(right: 6, top: 6,
+              child: Container(width: 7, height: 7,
+                  decoration: const BoxDecoration(
+                      color: Colors.redAccent, shape: BoxShape.circle))),
+        ]),
         const SizedBox(width: 8),
         // Cart
         GestureDetector(
