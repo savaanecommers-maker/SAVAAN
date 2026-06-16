@@ -46,6 +46,7 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
           builder: (_) => ProductListScreen(
             title: widget.parent.name,
             category: widget.parent,
+            parentCategory: widget.parent,
           ),
         ),
       );

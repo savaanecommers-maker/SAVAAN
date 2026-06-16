@@ -103,7 +103,7 @@ class ProductService {
   }
 
   Future<List<ProductModel>> getProductsByCategory(String categoryId, {String sortBy = 'popular'}) =>
-      getProducts(categoryId: categoryId, sortBy: sortBy);
+      getProducts(categoryId: categoryId, sortBy: sortBy, limit: 200);
 
   Future<List<ProductModel>> searchProducts(String query, {int limit = 20}) =>
       getProducts(searchQuery: query, limit: limit);
