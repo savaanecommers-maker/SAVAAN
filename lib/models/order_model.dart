@@ -330,7 +330,8 @@ enum PaymentMethod {
   debitCard,
   netBanking,
   wallet,
-  cod;
+  cod,
+  cashfree;
 
   static PaymentMethod? fromString(String value) {
     switch (value.toLowerCase()) {
@@ -340,6 +341,7 @@ enum PaymentMethod {
       case 'net_banking':  return PaymentMethod.netBanking;
       case 'wallet':       return PaymentMethod.wallet;
       case 'cod':          return PaymentMethod.cod;
+      case 'cashfree':     return PaymentMethod.cashfree;
       default:             return null;
     }
   }
@@ -352,6 +354,7 @@ enum PaymentMethod {
       case PaymentMethod.netBanking: return 'net_banking';
       case PaymentMethod.wallet:     return 'wallet';
       case PaymentMethod.cod:        return 'cod';
+      case PaymentMethod.cashfree:   return 'cashfree';
     }
   }
 

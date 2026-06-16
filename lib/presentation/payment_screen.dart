@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:cashfree_pg/cashfree_pg.dart';
 import '../data/api_client.dart';
 import '../models/cart_item_model.dart';
 import '../models/order_model.dart';
@@ -34,9 +35,14 @@ class PaymentScreen extends StatefulWidget {
   State<PaymentScreen> createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState extends State<PaymentScreen> {
-  PaymentMethod _selected   = PaymentMethod.upi;
+class _PaymentScreenState extends State<PaymentScreen>
+    implements CFPaymentResultCallback {
+  PaymentMethod _selected   = PaymentMethod.cashfree;
   bool          _isPlacing  = false;
+
+  // ── Cashfree state ────────────────────────────────────────────
+  final _phoneCtrl    = TextEditingController();
+  String? _cfOrderNumber; // stored after create-order so success screen knows it
 
   // ── Merchant UPI config — loaded from backend at init ─────────
   String? _merchantUpi;
@@ -56,6 +62,43 @@ class _PaymentScreenState extends State<PaymentScreen> {
   void initState() {
     super.initState();
     _fetchMerchantConfig();
+    CFPaymentGatewayService.getInstance().setCallback(this);
+  }
+
+  @override
+  void dispose() {
+    _phoneCtrl.dispose();
+    CFPaymentGatewayService.getInstance().removeCallback();
+    super.dispose();
+  }
+
+  // ── Cashfree SDK callbacks ────────────────────────────────────
+  @override
+  void onPaymentVerify(String orderId) {
+    final cartProvider = context.read<CartProvider>();
+    cartProvider.clear();
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => OrderSuccessScreen(
+          orderNumber: _cfOrderNumber ?? orderId,
+          orderDate:   DateTime.now().toString(),
+          total:       widget.total,
+        )),
+        (route) => route.isFirst,
+      );
+    }
+  }
+
+  @override
+  void onError(CFErrorResponse errorResponse, String orderId) {
+    if (mounted) {
+      setState(() => _isPlacing = false);
+      _showSnackBar(
+        errorResponse.getMessage() ?? 'Payment failed. Please try again.',
+        Colors.redAccent,
+      );
+    }
   }
 
   /// Fetches UPI VPA and merchant name from the backend contact/settings API.
@@ -151,6 +194,67 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }
     } finally {
       if (mounted) setState(() => _isPlacing = false);
+    }
+  }
+
+  // ── Cashfree: create order on backend, launch SDK ────────────
+  Future<void> _launchCashfree() async {
+    final phone = _phoneCtrl.text.trim().replaceAll(RegExp(r'\D'), '');
+    if (phone.length < 10) {
+      _showSnackBar('Enter a valid 10-digit mobile number', Colors.orange);
+      return;
+    }
+    setState(() => _isPlacing = true);
+    try {
+      final res = await ApiClient.post('/api/payments/cashfree/create-order', {
+        'items':          widget.cartItems.map((i) => {
+          'product_id': i.productId,
+          'variant_id': i.variantId,
+          'quantity':   i.quantity,
+        }).toList(),
+        'address_id':     widget.selectedAddressId,
+        'coupon_code':    widget.couponCode,
+        'shipping':       widget.shipping,
+        'subtotal':       widget.subtotal,
+        'discount':       widget.discount,
+        'total':          widget.total,
+        'customer_phone': phone,
+      });
+
+      if (!res.isSuccess || res.data == null) {
+        throw Exception(res.error ?? 'Failed to initiate payment');
+      }
+
+      final sessionId    = res.data!['payment_session_id'] as String;
+      final orderNumber  = res.data!['order_number'] as String;
+      _cfOrderNumber = orderNumber;
+
+      final cfEnv = CFEnvironment.PRODUCTION;
+
+      var cfSession = CFSession()
+        ..setPaymentSessionID(sessionId)
+        ..setOrderID(orderNumber)
+        ..setEnvironment(cfEnv);
+
+      var cfTheme = CFTheme()
+        ..setNavigationBarBackgroundColor('#0D9488')
+        ..setNavigationBarTextColor('#FFFFFF')
+        ..setButtonBackgroundColor('#0D9488')
+        ..setButtonTextColor('#FFFFFF')
+        ..setPrimaryFont('Roboto')
+        ..setSecondaryFont('Roboto');
+
+      var cfDropPayment = CFDropCheckoutPayment()
+        ..setSession(cfSession)
+        ..setTheme(cfTheme);
+
+      CFPaymentGatewayService.getInstance().doPayment(cfDropPayment);
+      // SDK takes over UI — result comes back in onPaymentVerify / onError
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isPlacing = false);
+        _showSnackBar(e.toString().replaceFirst('Exception: ', ''), Colors.redAccent);
+      }
     }
   }
 
@@ -424,10 +528,22 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         fontWeight: FontWeight.bold, color: _ink)),
                 const SizedBox(height: 14),
 
+                // ── Cashfree option ────────────────────────────
+                _buildMethod(
+                  value:    PaymentMethod.cashfree,
+                  title:    'Pay Online',
+                  subtitle: 'Cards · UPI · Net Banking · Wallets',
+                  badge:    _cashfreeBadge(),
+                ),
+
+                if (_selected == PaymentMethod.cashfree) _buildCashfreePanel(),
+
+                const SizedBox(height: 4),
+
                 // ── UPI option ─────────────────────────────────
                 _buildMethod(
                   value:    PaymentMethod.upi,
-                  title:    'Pay via UPI',
+                  title:    'Pay via UPI (Manual)',
                   subtitle: 'GPay · PhonePe · BHIM · Paytm & more',
                   badge:    _upiBadge(),
                 ),
@@ -916,6 +1032,79 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  // ── Cashfree badge ────────────────────────────────────────────
+  Widget _cashfreeBadge() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: const Color(0xFF1A1A2E).withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: const Text('SECURE', style: TextStyle(
+        fontSize: 10, color: Color(0xFF1A1A2E),
+        fontWeight: FontWeight.w800, letterSpacing: 1)),
+  );
+
+  // ── Cashfree panel — phone number input ───────────────────────
+  Widget _buildCashfreePanel() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E).withValues(alpha: 0.03),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(12),
+        ),
+        border: Border.all(color: const Color(0xFF1A1A2E).withValues(alpha: 0.12)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Payment icons row
+        Row(children: [
+          const Icon(Icons.credit_card_outlined, size: 18, color: Color(0xFF1A1A2E)),
+          const SizedBox(width: 6),
+          Text('Cards · UPI · Net Banking · Wallets',
+              style: TextStyle(fontSize: 12, color: _slate, fontWeight: FontWeight.w500)),
+        ]),
+        const SizedBox(height: 14),
+        // Phone field (required by Cashfree)
+        TextField(
+          controller: _phoneCtrl,
+          keyboardType: TextInputType.phone,
+          maxLength: 10,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          decoration: InputDecoration(
+            labelText: 'Mobile Number',
+            hintText: '10-digit number',
+            counterText: '',
+            prefixIcon: const Icon(Icons.phone_outlined, size: 18),
+            prefixText: '+91  ',
+            filled: true,
+            fillColor: _surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: _border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: _border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF1A1A2E), width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Icon(Icons.lock_outline, size: 13, color: _slate),
+          const SizedBox(width: 6),
+          Text('Your payment is secured by Cashfree',
+              style: TextStyle(fontSize: 11, color: _slate)),
+        ]),
+      ]),
+    );
+  }
+
   // ── UPI badge ─────────────────────────────────────────────────
   Widget _upiBadge() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -928,10 +1117,60 @@ class _PaymentScreenState extends State<PaymentScreen> {
         fontWeight: FontWeight.w800, letterSpacing: 1)),
   );
 
-  // ── Bottom pay bar (COD only — UPI has its own confirm inside panel) ──
+  // ── Bottom pay bar ────────────────────────────────────────────
   Widget _buildPayBar() {
+    // Cashfree: pay button launches the SDK
+    if (_selected == PaymentMethod.cashfree) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 16, offset: const Offset(0, -4),
+          )],
+        ),
+        child: Column(children: [
+          GestureDetector(
+            onTap: _isPlacing ? null : _launchCashfree,
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF1A1A2E), Color(0xFF16213E)]),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 12, offset: const Offset(0, 4),
+                )],
+              ),
+              child: Center(
+                child: _isPlacing
+                    ? const SizedBox(width: 22, height: 22,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.lock_outline, size: 16, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text('PAY ${_fmt(widget.total)} SECURELY',
+                            style: const TextStyle(color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15, letterSpacing: 0.5)),
+                      ]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.verified_user_outlined, size: 13, color: _slate),
+            const SizedBox(width: 5),
+            Text('Secured by Cashfree · 256-bit SSL',
+                style: TextStyle(fontSize: 12, color: _slate)),
+          ]),
+        ]),
+      );
+    }
+
     // For UPI: the "I've Paid" button is inside the UPI panel.
-    // Only show the bottom bar for COD.
     if (_selected == PaymentMethod.upi) {
       return Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
