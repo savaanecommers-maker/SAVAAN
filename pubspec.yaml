@@ -28,7 +28,7 @@ dependencies:
   image_picker: ^1.1.2          # photo upload from gallery / camera
   share_plus: ^10.0.0           # native share sheet
   flutter_html: ^3.0.0-beta.2   # render HTML product descriptions
-  cashfree_pg: ^3.0.0           # Cashfree payment gateway SDK
+  webview_flutter: ^4.8.0       # For Cashfree JS checkout
 
 dev_dependencies:
   flutter_test:

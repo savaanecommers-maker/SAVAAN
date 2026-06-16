@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:cashfree_pg/cashfree_pg.dart';
 import '../data/api_client.dart';
+import 'cashfree_webview_screen.dart';
 import '../models/cart_item_model.dart';
 import '../models/order_model.dart';
 import '../providers/cart_provider.dart';
@@ -35,14 +35,12 @@ class PaymentScreen extends StatefulWidget {
   State<PaymentScreen> createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState extends State<PaymentScreen>
-    implements CFPaymentResultCallback {
+class _PaymentScreenState extends State<PaymentScreen> {
   PaymentMethod _selected   = PaymentMethod.cashfree;
   bool          _isPlacing  = false;
 
   // ── Cashfree state ────────────────────────────────────────────
   final _phoneCtrl    = TextEditingController();
-  String? _cfOrderNumber; // stored after create-order so success screen knows it
 
   // ── Merchant UPI config — loaded from backend at init ─────────
   String? _merchantUpi;
@@ -62,43 +60,12 @@ class _PaymentScreenState extends State<PaymentScreen>
   void initState() {
     super.initState();
     _fetchMerchantConfig();
-    CFPaymentGatewayService.getInstance().setCallback(this);
   }
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
-    CFPaymentGatewayService.getInstance().removeCallback();
     super.dispose();
-  }
-
-  // ── Cashfree SDK callbacks ────────────────────────────────────
-  @override
-  void onPaymentVerify(String orderId) {
-    final cartProvider = context.read<CartProvider>();
-    cartProvider.clear();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => OrderSuccessScreen(
-          orderNumber: _cfOrderNumber ?? orderId,
-          orderDate:   DateTime.now().toString(),
-          total:       widget.total,
-        )),
-        (route) => route.isFirst,
-      );
-    }
-  }
-
-  @override
-  void onError(CFErrorResponse errorResponse, String orderId) {
-    if (mounted) {
-      setState(() => _isPlacing = false);
-      _showSnackBar(
-        errorResponse.getMessage() ?? 'Payment failed. Please try again.',
-        Colors.redAccent,
-      );
-    }
   }
 
   /// Fetches UPI VPA and merchant name from the backend contact/settings API.
@@ -225,31 +192,38 @@ class _PaymentScreenState extends State<PaymentScreen>
         throw Exception(res.error ?? 'Failed to initiate payment');
       }
 
-      final sessionId    = res.data!['payment_session_id'] as String;
-      final orderNumber  = res.data!['order_number'] as String;
-      _cfOrderNumber = orderNumber;
+      final sessionId   = res.data!['payment_session_id'] as String;
+      final orderNumber = res.data!['order_number'] as String;
 
-      final cfEnv = CFEnvironment.PRODUCTION;
+      setState(() => _isPlacing = false);
+      if (!mounted) return;
 
-      var cfSession = CFSession()
-        ..setPaymentSessionID(sessionId)
-        ..setOrderID(orderNumber)
-        ..setEnvironment(cfEnv);
+      // Open Cashfree JS checkout in a WebView
+      final result = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(builder: (_) => CashfreeWebViewScreen(
+          paymentSessionId: sessionId,
+          orderNumber:      orderNumber,
+          total:            widget.total,
+        )),
+      );
 
-      var cfTheme = CFTheme()
-        ..setNavigationBarBackgroundColor('#0D9488')
-        ..setNavigationBarTextColor('#FFFFFF')
-        ..setButtonBackgroundColor('#0D9488')
-        ..setButtonTextColor('#FFFFFF')
-        ..setPrimaryFont('Roboto')
-        ..setSecondaryFont('Roboto');
-
-      var cfDropPayment = CFDropCheckoutPayment()
-        ..setSession(cfSession)
-        ..setTheme(cfTheme);
-
-      CFPaymentGatewayService.getInstance().doPayment(cfDropPayment);
-      // SDK takes over UI — result comes back in onPaymentVerify / onError
+      if (!mounted) return;
+      if (result == 'success') {
+        context.read<CartProvider>().clear();
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => OrderSuccessScreen(
+            orderNumber: orderNumber,
+            orderDate:   DateTime.now().toString(),
+            total:       widget.total,
+          )),
+          (route) => route.isFirst,
+        );
+      } else if (result == 'failed') {
+        _showSnackBar('Payment failed. Please try again.', Colors.redAccent);
+      }
+      // 'cancelled' — user closed, do nothing
     } catch (e) {
       if (mounted) {
         setState(() => _isPlacing = false);
