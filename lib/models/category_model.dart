@@ -33,7 +33,7 @@ class CategoryModel {
       name:         json['name']?.toString() ?? '',
       imageUrl:     json['image_url']?.toString(),
       slug:         json['slug']?.toString() ?? '',
-      itemCount:    int.tryParse(json['item_count']?.toString() ?? '0') ?? 0,
+      itemCount:    int.tryParse((json['product_count'] ?? json['item_count'])?.toString() ?? '0') ?? 0,
       parentId:     json['parent_id']?.toString(),
       description:  json['description']?.toString(),
       isFeatured:   json['is_featured'] == true,
