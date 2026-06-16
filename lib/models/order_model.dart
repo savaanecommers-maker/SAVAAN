@@ -366,6 +366,7 @@ enum PaymentMethod {
       case PaymentMethod.netBanking: return 'Net Banking';
       case PaymentMethod.wallet:     return 'Wallet';
       case PaymentMethod.cod:        return 'Cash on Delivery';
+      case PaymentMethod.cashfree:   return 'Online Payment';
     }
   }
 }
