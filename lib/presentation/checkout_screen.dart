@@ -561,8 +561,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         child: Column(children: [
           _field(_nameCtrl,  'Full Name',   Icons.person_outline),
           const SizedBox(height: 10),
-          _field(_phoneCtrl, 'Phone',       Icons.phone_outlined,
-              type: TextInputType.phone),
+          _field(_phoneCtrl, 'Phone', Icons.phone_outlined,
+              type: TextInputType.phone,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Required';
+                final digits = v.replaceAll(RegExp(r'\D'), '');
+                if (digits.length != 10) return 'Enter a valid 10-digit phone number';
+                return null;
+              }),
           const SizedBox(height: 10),
           _field(_streetCtrl,'Street Address', Icons.home_outlined),
           const SizedBox(height: 10),
@@ -573,7 +579,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ]),
           const SizedBox(height: 10),
           _field(_pincodeCtrl, 'Pincode', Icons.pin_drop_outlined,
-              type: TextInputType.number),
+              type: TextInputType.number,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Required';
+                if (!RegExp(r'^\d{6}$').hasMatch(v.trim())) return 'Enter a valid 6-digit pincode';
+                return null;
+              }),
           const SizedBox(height: 14),
           GestureDetector(
             onTap: _saveAddress,
@@ -597,11 +608,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _field(TextEditingController ctrl, String label, IconData icon,
-      {TextInputType? type}) {
+      {TextInputType? type, String? Function(String?)? validator}) {
     return TextFormField(
       controller: ctrl,
       keyboardType: type,
-      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+      validator: validator ?? (v) => v == null || v.trim().isEmpty ? 'Required' : null,
       style: const TextStyle(fontSize: 13, color: _ink),
       decoration: InputDecoration(
         labelText: label,

@@ -60,7 +60,7 @@ class ProductModel {
   bool get isFlashDealActive =>
       isFlashDeal &&
       flashDealPrice != null &&
-      (flashDealExpiry == null || flashDealExpiry!.isAfter(DateTime.now()));
+      (flashDealExpiry == null || flashDealExpiry!.isAfter(DateTime.now().toUtc()));
 
   // ── From Supabase JSON ───────────────────────────────────────
   factory ProductModel.fromJson(Map<String, dynamic> json) {
