@@ -296,7 +296,7 @@ class _SubcategoryScreenState extends State<SubcategoryScreen> {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ProductListScreen(title: sub.name, category: sub),
+          builder: (_) => ProductListScreen(title: sub.name, category: sub, parentCategory: widget.parent),
         ),
       ),
       child: Container(

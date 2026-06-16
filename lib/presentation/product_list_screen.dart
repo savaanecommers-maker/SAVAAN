@@ -18,10 +18,12 @@ class ProductListScreen extends StatefulWidget {
   final String? collectionId;    // luxury collection id → fetch by category_slug
   final bool staffPicksOnly;     // force is_staff_pick=true query
   final String? searchQuery;     // full-text search from SearchScreen
+  final CategoryModel? parentCategory; // parent of category (for subcategory attr matching)
 
   const ProductListScreen({
     super.key,
     this.category,
+    this.parentCategory,
     this.title,
     this.showFlashDeals = false,
     this.showFeatured = false,
@@ -175,10 +177,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
       }).toList();
     }
 
-    // Attribute filter (keyword match in name/description)
+    // Attribute filter — use attributes array if tagged, else keyword fallback for untagged products
     if (_selectedAttributes.isNotEmpty) {
       list = list.where((p) {
-        final text = '${p.name} ${p.description ?? ''}'.toLowerCase();
+        if (p.attributes.isNotEmpty) {
+          return p.attributes.any((a) => _selectedAttributes.contains(a));
+        }
+        // Legacy untagged products: keyword match in name/brand/description
+        final text = '${p.name} ${p.brand ?? ''} ${p.description ?? ''}'.toLowerCase();
         return _selectedAttributes.any((a) => text.contains(a.toLowerCase()));
       }).toList();
     }
@@ -221,19 +227,46 @@ class _ProductListScreenState extends State<ProductListScreen> {
           .map((v) => v.color!))
       .toSet().toList()..sort();
 
+  // Match a DB slug to an attr key — mirrors admin panel's slugToAttrKey
+  String? _slugToAttrKey(String slug) {
+    final s = slug.toLowerCase();
+    if (s.startsWith('fashion') || s.contains('clothing') || s.contains('shirts') ||
+        s.contains('dresses') || s.contains('kurta') || s.contains('saree') ||
+        s.contains('trousers') || s.contains('tops') || s.contains('jeans') ||
+        s.contains('mens-') || s.contains('womens-') || s.contains('kids-fashion') ||
+        s.contains('boys-') || s.contains('girls-')) return 'fashion';
+    if (s.startsWith('footwear') || s.contains('shoes') || s.contains('sneakers') ||
+        s.contains('boots') || s.contains('sandals') || s.contains('slippers') ||
+        s.contains('heels') || s.contains('loafers')) return 'footwear';
+    if (s.startsWith('watches') || s.contains('watch')) return 'watches';
+    if (s.startsWith('perfumes') || s.contains('fragrance') || s.contains('cologne') ||
+        s.contains('attar') || s.contains('deodorant')) return 'perfumes';
+    if (s.startsWith('jewelry') || s.contains('rings') || s.contains('necklace') ||
+        s.contains('bracelet') || s.contains('earring') || s.contains('pendant') ||
+        s.contains('bangles') || s.contains('chains') || s.contains('wallets') ||
+        s.contains('belts')) return 'jewelry';
+    if (s.startsWith('bags') || s.contains('luggage') || s.contains('handbag') ||
+        s.contains('backpack') || s.contains('trolley') || s.contains('travel-bag') ||
+        s.contains('laptop-bag')) return 'bags';
+    if (s.startsWith('beauty') || s.contains('skincare') || s.contains('makeup') ||
+        s.contains('hair-care') || s.contains('personal-care')) return 'beauty';
+    if (s.startsWith('mobiles') || s.contains('mobile-phones') || s.contains('smartphones') ||
+        s.contains('chargers') || s.contains('power-bank') || s.contains('cases-covers')) return 'mobiles';
+    if (s.startsWith('electronics') || s.contains('laptops') || s.contains('headphones') ||
+        s.contains('tablets') || s.contains('cameras') || s.contains('speakers')) return 'electronics';
+    if (s.startsWith('home-decor') || s.contains('furniture') || s.contains('decorative') ||
+        s.contains('clocks') || s.contains('lighting')) return 'home-decor';
+    if (s.startsWith('health') || s.contains('wellness') || s.contains('vitamins') ||
+        s.contains('supplements') || s.contains('nutrition') || s.contains('fitness')) return 'health';
+    if (s.startsWith('seasonal') || s.contains('festival') || s.contains('festive') ||
+        s.contains('monsoon')) return 'seasonal';
+    return null;
+  }
+
   String get _categorySlug {
-    final n = (widget.category?.name ?? widget.title ?? '').toLowerCase();
-    if (n.contains('fashion') || n.contains('cloth') || n.contains('apparel') ||
-        n.contains('dress') || n.contains('shirt') || n.contains('kurta') ||
-        n.contains('saree') || n.contains('trouser')) { return 'fashion'; }
-    if (n.contains('footwear') || n.contains('shoe') || n.contains('sneaker') ||
-        n.contains('boot') || n.contains('sandal') || n.contains('slipper')) { return 'footwear'; }
-    if (n.contains('watch')) { return 'watches'; }
-    if (n.contains('perfume') || n.contains('fragrance') || n.contains('scent') ||
-        n.contains('deodorant')) { return 'perfumes'; }
-    if (n.contains('electron') || n.contains('gadget') || n.contains('phone') ||
-        n.contains('laptop') || n.contains('earphone') || n.contains('headphone')) { return 'electronics'; }
-    return 'general';
+    final catSlug    = widget.category?.slug ?? '';
+    final parentSlug = widget.parentCategory?.slug ?? '';
+    return _slugToAttrKey(catSlug) ?? _slugToAttrKey(parentSlug) ?? 'general';
   }
 
   static const Map<String, Map<String, List<String>>> _categoryAttrs = {
@@ -242,22 +275,55 @@ class _ProductListScreenState extends State<ProductListScreen> {
       'Material': ['Cotton', 'Polyester', 'Silk', 'Linen', 'Denim', 'Leather', 'Wool'],
     },
     'footwear': {
+      'Gender':   ['Men', 'Women', 'Unisex', 'Boys', 'Girls'],
       'Material': ['Leather', 'Canvas', 'Synthetic', 'Rubber', 'Suede'],
+      'Closure':  ['Lace-up', 'Slip-on', 'Velcro', 'Buckle'],
     },
     'watches': {
+      'Gender':         ['Men', 'Women', 'Unisex'],
       'Strap Material': ['Leather', 'Metal', 'Rubber', 'Silicone', 'Mesh'],
       'Dial Shape':     ['Round', 'Square', 'Rectangle', 'Oval'],
       'Features':       ['Water Resistant', 'Chronograph', 'Automatic', 'Smart', 'Quartz'],
     },
     'perfumes': {
-      'Fragrance Family': ['Floral', 'Woody', 'Oriental', 'Fresh', 'Citrus', 'Aquatic', 'Musky'],
       'Gender':           ['Men', 'Women', 'Unisex'],
+      'Fragrance Family': ['Floral', 'Woody', 'Oriental', 'Fresh', 'Citrus', 'Aquatic', 'Musky'],
       'Volume':           ['30ml', '50ml', '75ml', '100ml', '200ml'],
     },
     'electronics': {
       'Storage':  ['64GB', '128GB', '256GB', '512GB'],
       'RAM':      ['4GB', '6GB', '8GB', '12GB', '16GB'],
       'Features': ['Wireless', 'Bluetooth', 'WiFi', 'Fast Charging', 'USB-C'],
+    },
+    'beauty': {
+      'Skin Type':   ['Oily', 'Dry', 'Combination', 'Sensitive', 'All'],
+      'Formulation': ['Cream', 'Serum', 'Gel', 'Oil', 'Powder'],
+    },
+    'home-decor': {
+      'Style': ['Modern', 'Traditional', 'Bohemian', 'Minimalist', 'Rustic'],
+      'Room':  ['Living Room', 'Bedroom', 'Kitchen', 'Bathroom', 'Office'],
+    },
+    'jewelry': {
+      'Gender':     ['Men', 'Women', 'Unisex'],
+      'Metal Type': ['Gold', 'Silver', 'Rose Gold', 'Platinum', 'Brass'],
+      'Stone':      ['Diamond', 'Ruby', 'Emerald', 'Sapphire', 'Pearl', 'None'],
+    },
+    'bags': {
+      'Gender':   ['Men', 'Women', 'Unisex'],
+      'Type':     ['Backpack', 'Handbag', 'Tote', 'Clutch', 'Wallet', 'Luggage'],
+      'Material': ['Leather', 'Canvas', 'Nylon', 'Polyester'],
+    },
+    'health': {
+      'Form':     ['Tablet', 'Capsule', 'Liquid', 'Powder', 'Cream'],
+      'Benefits': ['Immunity', 'Energy', 'Sleep', 'Weight', 'Skin', 'Hair'],
+    },
+    'mobiles': {
+      'OS':       ['Android', 'iOS', 'Other'],
+      'Features': ['5G', 'Wireless Charging', 'Fast Charging', 'Foldable'],
+    },
+    'seasonal': {
+      'Season': ['Summer', 'Winter', 'Monsoon', 'Festive'],
+      'Gender': ['Men', 'Women', 'Unisex', 'Kids'],
     },
   };
 

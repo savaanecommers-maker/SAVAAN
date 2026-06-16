@@ -21,6 +21,7 @@ class ProductModel {
   final DateTime? flashDealExpiry;  // when the deal expires
   final DateTime? createdAt;
   final List<ProductVariant> variants;
+  final List<String> attributes;
 
   ProductModel({
     required this.id,
@@ -43,6 +44,7 @@ class ProductModel {
     this.flashDealExpiry,
     this.createdAt,
     this.variants = const [],
+    this.attributes = const [],
   });
 
   // Effective price — flash deal price if active, otherwise regular price
@@ -123,6 +125,9 @@ class ProductModel {
           ? DateTime.tryParse(json['created_at'].toString())
           : null,
       variants:      variantList,
+      attributes: json['attributes'] != null && json['attributes'] is List
+          ? List<String>.from((json['attributes'] as List).map((e) => e.toString()))
+          : const [],
     );
   }
 
@@ -219,6 +224,7 @@ class ProductModel {
     DateTime? flashDealExpiry,
     DateTime? createdAt,
     List<ProductVariant>? variants,
+    List<String>? attributes,
   }) {
     return ProductModel(
       id:              id ?? this.id,
@@ -241,6 +247,7 @@ class ProductModel {
       flashDealExpiry: flashDealExpiry ?? this.flashDealExpiry,
       createdAt:       createdAt ?? this.createdAt,
       variants:        variants ?? this.variants,
+      attributes:      attributes ?? this.attributes,
     );
   }
 
