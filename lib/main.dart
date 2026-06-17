@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'data/api_client.dart';
 import 'presentation/splash_screen.dart';
@@ -41,6 +42,10 @@ void main() async {
   if (kDebugMode) HttpOverrides.global = _TrustAllCerts();
 
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Prevent google_fonts from making network requests at runtime — fonts load
+  // from the package's bundled assets instead, avoiding blocking DNS/TCP on startup.
+  GoogleFonts.config.allowRuntimeFetching = false;
 
   // Cap image memory cache at 60 MB to prevent OOM crashes on mid-range devices.
   PaintingBinding.instance.imageCache.maximumSizeBytes = 60 * 1024 * 1024;

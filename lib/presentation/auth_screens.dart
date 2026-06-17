@@ -19,6 +19,7 @@ class _AuthParentPageState extends State<AuthParentPage>
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
+  final TextEditingController _nameController     = TextEditingController();
   final TextEditingController _emailController    = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -50,6 +51,7 @@ class _AuthParentPageState extends State<AuthParentPage>
   @override
   void dispose() {
     _fadeController.dispose();
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -58,6 +60,7 @@ class _AuthParentPageState extends State<AuthParentPage>
   void _switchView(String view) {
     _fadeController.reverse().then((_) {
       setState(() => _currentView = view);
+      _nameController.clear();
       _fadeController.forward();
     });
   }
@@ -123,6 +126,7 @@ class _AuthParentPageState extends State<AuthParentPage>
       }
     } else if (_currentView == 'signup') {
       error = await _authService.signUpWithEmail(
+        fullName: _nameController.text.trim(),
         email:    _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
@@ -254,6 +258,17 @@ class _AuthParentPageState extends State<AuthParentPage>
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 28),
+
+            if (isSignup) ...[
+              _buildInputField(
+                controller: _nameController,
+                hint: 'Full Name',
+                icon: Icons.person_outline,
+                validator: (val) =>
+                    val == null || val.trim().isEmpty ? 'Enter your name' : null,
+              ),
+              const SizedBox(height: 14),
+            ],
 
             _buildInputField(
               controller: _emailController,

@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static ThemeData get theme {
-    return ThemeData(
+  static final ThemeData theme = ThemeData(
       textTheme: GoogleFonts.dmSansTextTheme().copyWith(
         // Large headings — Playfair Display
         displayLarge:  GoogleFonts.playfairDisplay(
@@ -31,6 +30,5 @@ class AppTheme {
         labelSmall:  GoogleFonts.dmSans(
             fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
       ),
-    );
-  }
+  );
 }
