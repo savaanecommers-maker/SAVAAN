@@ -9,6 +9,7 @@ class CartProvider extends ChangeNotifier {
 
   List<CartItemModel> _items          = [];
   bool                _isLoading      = false;
+  String?             _loadError;
   String?             _couponCode;
   double              _couponDiscount = 0;
   String?             _couponError;
@@ -17,6 +18,7 @@ class CartProvider extends ChangeNotifier {
   // ── Getters ───────────────────────────────────────────────────
   List<CartItemModel> get items          => _items;
   bool                get isLoading      => _isLoading;
+  String?             get loadError      => _loadError;
   bool                get isEmpty        => _items.isEmpty;
   String?             get couponCode     => _couponCode;
   double              get couponDiscount => _couponDiscount;
@@ -51,11 +53,13 @@ class CartProvider extends ChangeNotifier {
   // ── Load ──────────────────────────────────────────────────────
   Future<void> loadCart() async {
     _isLoading = true;
+    _loadError = null;
     notifyListeners();
     try {
       _items = await _cartService.getCartItems();
-    } catch (_) {
+    } catch (e) {
       _items = [];
+      _loadError = 'Failed to load cart. Please try again.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -102,9 +106,16 @@ class CartProvider extends ChangeNotifier {
 
   // ── Remove item ───────────────────────────────────────────────
   Future<void> removeFromCart(String cartItemId) async {
-    _items.removeWhere((i) => i.id == cartItemId);
+    final removedIdx = _items.indexWhere((i) => i.id == cartItemId);
+    if (removedIdx < 0) return;
+    final removed = _items[removedIdx];
+    _items.removeAt(removedIdx);
     notifyListeners();
-    await _cartService.removeFromCart(cartItemId);
+    final error = await _cartService.removeFromCart(cartItemId);
+    if (error != null) {
+      _items.insert(removedIdx.clamp(0, _items.length), removed);
+      notifyListeners();
+    }
   }
 
   // ── Clear entire cart ─────────────────────────────────────────

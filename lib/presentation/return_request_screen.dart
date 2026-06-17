@@ -129,9 +129,11 @@ class _ReturnRequestScreenState extends State<ReturnRequestScreen> {
               padding: const EdgeInsets.all(16),
               child: _existingReturn != null
                   ? _buildExistingReturn()
-                  : _submitted
-                      ? _buildSuccess()
-                      : _buildForm(),
+                  : widget.order.status.value != 'delivered'
+                      ? _buildNotDelivered()
+                      : _submitted
+                          ? _buildSuccess()
+                          : _buildForm(),
             ),
           ),
         ]),
@@ -158,6 +160,34 @@ class _ReturnRequestScreenState extends State<ReturnRequestScreen> {
       const Text('Request Return',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _ink)),
     ]),
+  );
+
+  Widget _buildNotDelivered() => Column(
+    children: [
+      const SizedBox(height: 40),
+      Container(
+        width: 72, height: 72,
+        decoration: BoxDecoration(color: _red.withValues(alpha: 0.1), shape: BoxShape.circle),
+        child: Icon(Icons.block_rounded, size: 36, color: _red),
+      ),
+      const SizedBox(height: 16),
+      const Text('Return Not Available',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _ink)),
+      const SizedBox(height: 8),
+      Text('Returns can only be requested for delivered orders.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: _slate, height: 1.5)),
+      const SizedBox(height: 24),
+      GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+          decoration: BoxDecoration(color: _surface, borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _border)),
+          child: const Text('Go Back', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
+        ),
+      ),
+    ],
   );
 
   Widget _buildExistingReturn() => Column(
@@ -270,9 +300,11 @@ class _ReturnRequestScreenState extends State<ReturnRequestScreen> {
               decoration: BoxDecoration(
                   color: const Color(0xFFDCFCE7),
                   borderRadius: BorderRadius.circular(8)),
-              child: const Text('Delivered',
-                  style: TextStyle(fontSize: 10, color: Color(0xFF16A34A),
-                      fontWeight: FontWeight.w600)),
+              child: Text(
+                widget.order.status.displayLabel,
+                style: const TextStyle(fontSize: 10, color: Color(0xFF16A34A),
+                    fontWeight: FontWeight.w600),
+              ),
             ),
           ]),
         ),

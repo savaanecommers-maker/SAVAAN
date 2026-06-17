@@ -221,7 +221,7 @@ class _CartScreenState extends State<CartScreen> {
                                   fontWeight: FontWeight.bold, color: _ink)),
                         )),
                     _qtyBtn(Icons.add, () {
-                      final maxStock = item.variant?.stock ?? item.product?.stock ?? 999;
+                      final maxStock = item.variant?.stock ?? item.product?.stock ?? 0;
                       if (item.quantity >= maxStock) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(

@@ -62,8 +62,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     setState(() {
       _notifications = _notifications.map((n) => {...n, 'is_read': true}).toList();
     });
-    // Single bulk call instead of N sequential calls
-    ApiClient.put('/api/notifications/mark-all-read', {});
+    await ApiClient.put('/api/notifications/mark-all-read', {});
   }
 
   Future<void> _deleteNotification(String id) async {
@@ -288,7 +287,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
       onDismissed: (_) => _deleteNotification(id),
       child: GestureDetector(
-        onTap: isRead ? null : () => _markAsRead(id),
+        onTap: () async {
+          if (!isRead) await _markAsRead(id);
+          if (!mounted) return;
+          final type = n['type']?.toString();
+          final data = n['data'] as Map<String, dynamic>?;
+          if (type == 'order' && data != null && data['order_id'] != null) {
+            Navigator.pushNamed(context, '/orders');
+          }
+        },
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
