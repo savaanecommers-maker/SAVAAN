@@ -273,7 +273,13 @@ class ProductVariant {
   final String? color;
   final String? size;
   final int stock;
-  final double? priceOverride; // optional per-variant price (stored as `price` in DB)
+  final double? priceOverride;
+  final double? salePrice;
+  final String? sku;
+  final String? variantName;
+  final String status;
+  final List<String> images;
+  final Map<String, String> attributes;
 
   ProductVariant({
     required this.id,
@@ -282,22 +288,43 @@ class ProductVariant {
     this.size,
     this.stock = 0,
     this.priceOverride,
+    this.salePrice,
+    this.sku,
+    this.variantName,
+    this.status = 'active',
+    this.images = const [],
+    this.attributes = const {},
   });
 
   factory ProductVariant.fromJson(Map<String, dynamic> json) {
-    // `price` in product_variants = price override; `variant_price` from cart JOIN
-    final rawPrice = json['price'] ?? json['variant_price'];
+    final rawPrice    = json['price']      ?? json['variant_price'];
+    final rawSale     = json['sale_price'] ?? json['variant_sale_price'];
+
+    List<String> imgs = [];
+    final rawImgs = json['images'] ?? json['variant_images'];
+    if (rawImgs is List) imgs = rawImgs.map((e) => e.toString()).toList();
+
+    Map<String, String> attrs = {};
+    final rawAttrs = json['attributes'] ?? json['variant_attributes'];
+    if (rawAttrs is Map) {
+      attrs = rawAttrs.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+
     return ProductVariant(
-      id:            json['id']?.toString() ?? '',
-      productId:     json['product_id']?.toString() ?? '',
-      color:         json['color']?.toString() ?? json['variant_color']?.toString(),
-      size:          json['size']?.toString()  ?? json['variant_size']?.toString(),
-      stock:         int.tryParse(
-                       (json['stock'] ?? json['variant_stock'] ?? '0').toString()
-                     ) ?? 0,
-      priceOverride: rawPrice != null
-          ? double.tryParse(rawPrice.toString())
-          : null,
+      id:           json['id']?.toString() ?? '',
+      productId:    json['product_id']?.toString() ?? '',
+      color:        json['color']?.toString() ?? json['variant_color']?.toString(),
+      size:         json['size']?.toString()  ?? json['variant_size']?.toString(),
+      stock:        int.tryParse(
+                      (json['stock'] ?? json['variant_stock'] ?? '0').toString()
+                    ) ?? 0,
+      priceOverride: rawPrice != null ? double.tryParse(rawPrice.toString()) : null,
+      salePrice:     rawSale  != null ? double.tryParse(rawSale.toString())  : null,
+      sku:          json['sku']?.toString() ?? json['variant_sku']?.toString(),
+      variantName:  json['variant_name']?.toString(),
+      status:       json['status']?.toString() ?? 'active',
+      images:       imgs,
+      attributes:   attrs,
     );
   }
 
@@ -308,12 +335,26 @@ class ProductVariant {
     'size':           size,
     'stock':          stock,
     'price_override': priceOverride,
+    'sale_price':     salePrice,
+    'sku':            sku,
+    'variant_name':   variantName,
+    'status':         status,
+    'images':         images,
+    'attributes':     attributes,
   };
 
   bool get isInStock => stock > 0;
+  bool get isActive  => status == 'active';
+
+  double? get effectivePrice => salePrice ?? priceOverride;
 
   String get displayName {
-    final parts = [if (color != null) color!, if (size != null) size!];
+    if (variantName != null && variantName!.isNotEmpty) return variantName!;
+    final parts = [
+      if (color != null) color!,
+      if (size != null) size!,
+      ...attributes.values,
+    ];
     return parts.join(' / ');
   }
 

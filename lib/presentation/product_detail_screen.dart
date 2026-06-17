@@ -36,9 +36,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _isLoading = true;
   int _selectedImageIndex = 0;
   ProductVariant? _selectedVariant;
-  String? _selectedColor;  // selected color (step 1 when product has both)
-  String? _selectedSize;   // selected size  (step 2 when product has both)
-  bool _variantRequired = false; // turns true when user tries to add-to-cart without selecting
+  String? _selectedColor;
+  String? _selectedSize;
+  Map<String, String> _selectedAttributes = {};
+  bool _variantRequired = false;
   int _quantity = 1;
   bool _addingToCart = false;
   bool _isSharing = false;
@@ -151,9 +152,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void _onColorSelected(String color) {
     final variants = _product!.variants;
     setState(() {
-      _selectedColor   = color;
-      _selectedVariant = null; // reset until size is also chosen
-      // If no sizes exist, resolve variant immediately
+      _selectedColor       = color;
+      _selectedVariant     = null;
+      _selectedImageIndex  = 0;
       final hasSizes = variants.any((v) => v.size != null);
       if (!hasSizes) {
         _selectedVariant = variants.firstWhere(
@@ -161,12 +162,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           orElse: () => variants.first,
         );
       } else if (_selectedSize != null) {
-        // Try to keep same size in new color
         final match = variants.where(
           (v) => v.color == color && v.size == _selectedSize,
         );
         if (match.isNotEmpty) _selectedVariant = match.first;
-        // else leave null so user knows to pick size again
       }
     });
   }
@@ -174,7 +173,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void _onSizeSelected(String size) {
     final variants = _product!.variants;
     setState(() {
-      _selectedSize = size;
+      _selectedSize        = size;
+      _selectedImageIndex  = 0;
       final hasColors = variants.any((v) => v.color != null);
       if (!hasColors) {
         _selectedVariant = variants.firstWhere(
@@ -368,7 +368,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
     );
 
-    final unitPrice   = _selectedVariant?.priceOverride ?? p.effectivePrice;
+    final unitPrice   = _selectedVariant?.effectivePrice ?? p.effectivePrice;
     final subtotal    = unitPrice * _quantity;
     final shippingAmt = subtotal >= cart.freeShippingAbove ? 0.0 : cart.shippingCharge;
 
@@ -426,7 +426,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   // ── Image gallery ────────────────────────────────────────────
   Widget _buildImageGallery(ProductModel p) {
-    final images = p.images.isNotEmpty ? p.images : <String>[];
+    // Use variant images when a variant with its own images is selected
+    final variantImgs = _selectedVariant?.images ?? [];
+    final images = variantImgs.isNotEmpty ? variantImgs : (p.images.isNotEmpty ? p.images : <String>[]);
     return Column(children: [
       // Main image
       Container(
@@ -606,21 +608,40 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         : allSizes;
 
     // Price / stock to show from selected variant
-    final effectivePrice = _selectedVariant?.priceOverride ?? p.price;
-    final variantStock   = _selectedVariant?.stock;
+    final variantStock      = _selectedVariant?.stock;
+    final variantSalePrice  = _selectedVariant?.salePrice;
+    final variantBasePrice  = _selectedVariant?.priceOverride ?? p.price;
+    final effectivePrice    = variantSalePrice ?? variantBasePrice;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-        // ── Price: update if variant has price override ───────
-        if (_selectedVariant?.priceOverride != null) ...[
+        // ── Price: update if variant has price override or sale price ──
+        if (_selectedVariant != null && (_selectedVariant!.priceOverride != null || _selectedVariant!.salePrice != null)) ...[
           Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             Text(_fmtPrice(effectivePrice),
-                style: const TextStyle(fontSize: 22,
-                    fontWeight: FontWeight.bold, color: _ink)),
-            if (p.price != effectivePrice) ...[
-              const SizedBox(width: 8),
+                style: TextStyle(fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: variantSalePrice != null ? Colors.redAccent : _ink)),
+            const SizedBox(width: 8),
+            if (variantSalePrice != null) ...[
+              Text(_fmtPrice(variantBasePrice),
+                  style: TextStyle(fontSize: 14, color: _slate,
+                      decoration: TextDecoration.lineThrough)),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${(((variantBasePrice - variantSalePrice) / variantBasePrice) * 100).round()}% off',
+                  style: const TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ] else if (variantBasePrice != p.price) ...[
               Text(_fmtPrice(p.price),
                   style: TextStyle(fontSize: 14, color: _slate,
                       decoration: TextDecoration.lineThrough)),
@@ -800,8 +821,94 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             }).toList(),
           ),
         ],
+
+        // ── Extra attribute selectors (Storage, RAM, etc.) ────
+        ..._buildAttributeSelectors(p),
+
       ]),
     );
+  }
+
+  /// Builds one chip row per unique attribute key found across all variants.
+  List<Widget> _buildAttributeSelectors(ProductModel p) {
+    // Collect all attribute keys
+    final keys = <String>{};
+    for (final v in p.variants) keys.addAll(v.attributes.keys);
+    if (keys.isEmpty) return [];
+
+    final widgets = <Widget>[];
+    for (final key in keys) {
+      final values = p.variants
+          .where((v) => v.attributes.containsKey(key))
+          .map((v) => v.attributes[key]!)
+          .toSet()
+          .toList();
+      if (values.isEmpty) continue;
+
+      final selectedVal = _selectedAttributes[key];
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(Row(children: [
+        Text(key, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
+        const SizedBox(width: 8),
+        if (selectedVal != null)
+          Text(selectedVal, style: const TextStyle(fontSize: 13, color: _slate)),
+      ]));
+      widgets.add(const SizedBox(height: 10));
+      widgets.add(Wrap(
+        spacing: 8, runSpacing: 8,
+        children: values.map((val) {
+          final isSelected = selectedVal == val;
+          // Resolve stock for this attribute value given other selections
+          final matchingVariants = p.variants.where((v) {
+            if (v.attributes[key] != val) return false;
+            if (_selectedColor != null && v.color != _selectedColor) return false;
+            if (_selectedSize  != null && v.size  != _selectedSize)  return false;
+            return true;
+          });
+          final hasStock = matchingVariants.isEmpty || matchingVariants.any((v) => v.stock > 0);
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedAttributes = { ..._selectedAttributes, key: val };
+                _selectedImageIndex = 0;
+                _resolveVariantFromAttributes(p);
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: isSelected ? _teal : Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSelected ? _teal : _border,
+                  width: isSelected ? 2 : 1.5,
+                ),
+              ),
+              child: Text(val, style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? Colors.white : (hasStock ? _ink : _border),
+              )),
+            ),
+          );
+        }).toList(),
+      ));
+    }
+    return widgets;
+  }
+
+  /// Tries to resolve `_selectedVariant` from current color/size/_selectedAttributes.
+  void _resolveVariantFromAttributes(ProductModel p) {
+    final match = p.variants.where((v) {
+      if (_selectedColor != null && v.color != _selectedColor) return false;
+      if (_selectedSize  != null && v.size  != _selectedSize)  return false;
+      for (final entry in _selectedAttributes.entries) {
+        if (v.attributes[entry.key] != entry.value) return false;
+      }
+      return true;
+    });
+    _selectedVariant = match.isNotEmpty ? match.first : null;
   }
 
   String _fmtPrice(double amount) {
