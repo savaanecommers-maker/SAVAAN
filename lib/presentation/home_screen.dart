@@ -282,6 +282,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     productProvider.clear();
     homepageProvider.clear();
     orderProvider.clear();
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
     if (mounted) {
       nav.pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthParentPage()), (_) => false);

@@ -168,6 +168,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     context.read<WishlistProvider>().clear();
     context.read<ProductProvider>().clear();
     context.read<OrderProvider>().clear();
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
   }
 
   Future<void> _logout() async {

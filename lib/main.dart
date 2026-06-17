@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'data/api_client.dart';
 import 'presentation/splash_screen.dart';
-import 'presentation/home_screen.dart';
 import 'presentation/categories_screen.dart';
 import 'presentation/cart_screen.dart';
 import 'presentation/wishlist_screen.dart';
@@ -100,11 +99,7 @@ void showInAppNotification({
 void _navigateForType(String type) {
   final nav = navigatorKey.currentState;
   if (nav == null) return;
-  if (type == 'order') {
-    nav.push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
-  } else {
-    nav.push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
-  }
+  nav.pushNamed(type == 'order' ? '/orders' : '/notifications');
 }
 
 class MyApp extends StatelessWidget {
@@ -128,10 +123,28 @@ class MyApp extends StatelessWidget {
         theme: AppTheme.theme,
         home: const SplashScreen(),
         routes: {
-          '/categories': (_) => const CategoriesScreen(),
-          '/cart':       (_) => const CartScreen(),
-          '/wishlist':   (_) => const WishlistScreen(),
-          '/profile':    (_) => const ProfileScreen(),
+          '/categories':    (_) => const CategoriesScreen(),
+          '/cart':          (_) => const CartScreen(),
+          '/wishlist':      (_) => const WishlistScreen(),
+          '/profile':       (_) => const ProfileScreen(),
+          '/orders':        (_) => const OrdersScreen(),
+          '/notifications': (_) => const NotificationsScreen(),
+        },
+        onGenerateRoute: (settings) {
+          // Handle deep links from push notifications.
+          // Route format: /orders/<id>, /product/<id>, etc.
+          final uri = Uri.tryParse(settings.name ?? '');
+          if (uri == null) return null;
+          final segments = uri.pathSegments;
+          if (segments.isEmpty) return null;
+          switch (segments[0]) {
+            case 'orders':
+              return MaterialPageRoute(builder: (_) => const OrdersScreen());
+            case 'notifications':
+              return MaterialPageRoute(builder: (_) => const NotificationsScreen());
+            default:
+              return null;
+          }
         },
       ),
     );

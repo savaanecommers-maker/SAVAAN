@@ -258,39 +258,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
-  void _checkDelivery() {
+  Future<void> _checkDelivery() async {
     final pincode = _pincodeController.text.trim();
     if (pincode.length != 6 || int.tryParse(pincode) == null) {
       setState(() => _pincodeResult = 'Enter a valid 6-digit pincode');
       return;
     }
     setState(() => _checkingPincode = true);
-
-    Future.delayed(const Duration(milliseconds: 400), () {
+    try {
+      final res = await ApiClient.get('/api/addresses/pincode/$pincode');
       if (!mounted) return;
-      final prefix = int.parse(pincode.substring(0, 3));
-      String result;
-      // Warehouse: Visakhapatnam (530xxx)
-      if (prefix >= 530 && prefix <= 531) {
-        result = 'Delivery in 1–2 business days';
-      } else if ((prefix >= 500 && prefix <= 535) ||
-                 (prefix >= 570 && prefix <= 577) ||
-                 (prefix >= 515 && prefix <= 530)) {
-        result = 'Delivery in 2–3 business days';
-      } else if ((prefix >= 600 && prefix <= 643) || // Tamil Nadu
-                 (prefix >= 560 && prefix <= 562) || // Bengaluru
-                 (prefix >= 400 && prefix <= 421) || // Mumbai
-                 (prefix >= 700 && prefix <= 743) || // Kolkata
-                 (prefix >= 110 && prefix <= 130)) { // Delhi
-        result = 'Delivery in 3–5 business days';
+      if (res.isSuccess && res.data != null) {
+        final msg = res.data!['message']?.toString() ?? '';
+        final serviceable = res.data!['serviceable'] == true;
+        setState(() {
+          _pincodeResult = serviceable ? msg : 'Delivery not available for this pincode';
+          _checkingPincode = false;
+        });
       } else {
-        result = 'Delivery in 5–7 business days';
+        setState(() { _pincodeResult = 'Unable to check pincode'; _checkingPincode = false; });
       }
-      setState(() {
-        _pincodeResult = result;
-        _checkingPincode = false;
-      });
-    });
+    } catch (_) {
+      if (mounted) setState(() { _pincodeResult = 'Unable to check pincode'; _checkingPincode = false; });
+    }
   }
 
   Future<void> _addToCart() async {

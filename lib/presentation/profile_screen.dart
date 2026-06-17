@@ -271,6 +271,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       wishlistProvider.clear();
       productProvider.clear();
       orderProvider.clear();
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
       if (mounted) {
         nav.pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthParentPage()),

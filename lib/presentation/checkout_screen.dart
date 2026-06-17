@@ -50,6 +50,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   late double _currentShipping;
   late double _currentTotal;
 
+  // Price-change detection
+  List<String> _priceChangedNames = [];
+
   double get _subtotal => _cartItems.fold(0.0, (sum, item) => sum + item.unitPrice * item.quantity);
 
   // New address form
@@ -79,6 +82,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _currentTotal    = widget.total;
     if (_couponCode != null) _couponCtrl.text = _couponCode!;
     _loadAddresses();
+    _checkPriceChanges();
   }
 
   @override
@@ -122,6 +126,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       debugPrint('Load addresses error: $e');
       if (mounted) setState(() => _isLoadingAddresses = false);
     }
+  }
+
+  Future<void> _checkPriceChanges() async {
+    try {
+      final res = await ApiClient.get('/api/cart');
+      if (!mounted || !res.isSuccess || res.data == null) return;
+      final freshList = (res.data!['items'] as List? ?? res.data!['_list'] as List? ?? []);
+      final freshPrices = <String, double>{};
+      for (final item in freshList) {
+        final id = item['id']?.toString() ?? item['product_id']?.toString() ?? '';
+        final price = double.tryParse(item['unit_price']?.toString() ?? '') ?? 0;
+        if (id.isNotEmpty) freshPrices[id] = price;
+      }
+      final changed = <String>[];
+      for (final item in _cartItems) {
+        final freshPrice = freshPrices[item.id] ?? freshPrices[item.product?.id ?? ''];
+        if (freshPrice != null && (freshPrice - item.unitPrice).abs() > 0.01) {
+          changed.add(item.product?.name ?? 'An item');
+        }
+      }
+      if (mounted && changed.isNotEmpty) {
+        setState(() => _priceChangedNames = changed);
+      }
+    } catch (_) {}
   }
 
   Future<void> _saveAddress() async {
@@ -337,6 +365,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (_priceChangedNames.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF9C3),
+                        border: Border.all(color: const Color(0xFFFDE047)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.info_outline, size: 16, color: Color(0xFFCA8A04)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Prices updated: ${_priceChangedNames.join(', ')}. '
+                            'Your cart reflects the latest prices.',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                          ),
+                        ),
+                      ]),
+                    ),
                   _buildSectionTitle('Delivery Address', Icons.location_on_outlined),
                   _buildAddressSection(),
                   _buildSectionTitle('Coupons & Offers', Icons.local_offer_outlined),
