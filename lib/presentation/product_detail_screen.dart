@@ -334,6 +334,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<void> _buyNow(ProductModel p) async {
+    // Enforce variant selection — same guard as _addToCart
+    if (_product!.hasVariants && _selectedVariant == null) {
+      setState(() => _variantRequired = true);
+      final hasSizes  = _product!.variants.any((v) => v.size != null && v.size!.isNotEmpty);
+      final hasColors = _product!.variants.any((v) => v.color != null && v.color!.isNotEmpty);
+      String msg = 'Please select ';
+      if (hasSizes && hasColors) {
+        msg += 'color and size';
+      } else if (hasSizes) {
+        msg += 'a size';
+      } else {
+        msg += 'a variant';
+      }
+      msg += ' before buying';
+      _showSnackBar(msg, Colors.orange);
+      return;
+    }
+
     final cart = context.read<CartProvider>();
     final nav  = Navigator.of(context);
 

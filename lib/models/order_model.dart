@@ -227,15 +227,16 @@ enum OrderStatus {
 
   static OrderStatus fromString(String value) {
     switch (value.toLowerCase()) {
+      case 'processing':       return OrderStatus.processing;
       case 'confirmed':        return OrderStatus.confirmed;
       case 'packed':           return OrderStatus.packed;
       case 'shipped':          return OrderStatus.shipped;
       case 'out_for_delivery': return OrderStatus.outForDelivery;
       case 'delivered':        return OrderStatus.delivered;
       case 'cancelled':        return OrderStatus.cancelled;
-      case 'return_requested':  return OrderStatus.returnRequested;
-      case 'returned':          return OrderStatus.returned;
-      default:                  return OrderStatus.processing;
+      case 'return_requested': return OrderStatus.returnRequested;
+      case 'returned':         return OrderStatus.returned;
+      default:                 return OrderStatus.processing;
     }
   }
 

@@ -8,25 +8,29 @@ class WishlistProvider extends ChangeNotifier {
   List<ProductModel> _products    = [];
   Set<String>        _ids         = {};
   bool               _isLoading   = false;
+  String?            _loadError;
+  String?            _toggleError;
 
   // ── Getters ───────────────────────────────────────────────────
-  List<ProductModel> get products  => _products;
-  Set<String>        get ids       => _ids;
-  bool               get isLoading => _isLoading;
-  int                get count     => _ids.length;
+  List<ProductModel> get products    => _products;
+  Set<String>        get ids         => _ids;
+  bool               get isLoading   => _isLoading;
+  int                get count       => _ids.length;
+  String?            get loadError   => _loadError;
+  String?            get toggleError => _toggleError;
 
   bool isWishlisted(String productId) => _ids.contains(productId);
 
   // ── Load full wishlist (products + IDs) ───────────────────────
   Future<void> loadWishlist() async {
     _isLoading = true;
+    _loadError = null;
     notifyListeners();
     try {
       _products = await _service.getWishlist();
       _ids      = _products.map((p) => p.id).toSet();
-    } catch (_) {
-      _products = [];
-      _ids      = {};
+    } catch (e) {
+      _loadError = 'Failed to load wishlist. Tap to retry.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -41,21 +45,42 @@ class WishlistProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // ── Toggle (optimistic) ───────────────────────────────────────
-  Future<void> toggleWishlist(String productId,
-      {ProductModel? product}) async {
-    if (_ids.contains(productId)) {
-      // Remove
+  // ── Toggle (optimistic with rollback on failure) ──────────────
+  Future<bool> toggleWishlist(String productId, {ProductModel? product}) async {
+    _toggleError = null;
+    final wasIn = _ids.contains(productId);
+
+    // Optimistic update
+    if (wasIn) {
       _ids.remove(productId);
       _products.removeWhere((p) => p.id == productId);
-      notifyListeners();
-      await _service.removeFromWishlist(productId);
     } else {
-      // Add
       _ids.add(productId);
       if (product != null) _products.insert(0, product);
+    }
+    notifyListeners();
+
+    try {
+      if (wasIn) {
+        await _service.removeFromWishlist(productId);
+      } else {
+        await _service.addToWishlist(productId);
+      }
+      return true;
+    } catch (_) {
+      // Rollback optimistic update
+      if (wasIn) {
+        _ids.add(productId);
+        if (product != null && !_products.any((p) => p.id == productId)) {
+          _products.insert(0, product);
+        }
+      } else {
+        _ids.remove(productId);
+        _products.removeWhere((p) => p.id == productId);
+      }
+      _toggleError = wasIn ? 'Failed to remove from wishlist' : 'Failed to add to wishlist';
       notifyListeners();
-      await _service.addToWishlist(productId);
+      return false;
     }
   }
 
@@ -67,10 +92,12 @@ class WishlistProvider extends ChangeNotifier {
     await _service.removeFromWishlist(productId);
   }
 
-  // ── Reset on logout ───────────────────────────────────────────
+  // ── Reset on logout (also clears image cache) ────────────────
   void clear() {
-    _products = [];
-    _ids      = {};
+    _products    = [];
+    _ids         = {};
+    _loadError   = null;
+    _toggleError = null;
     notifyListeners();
   }
 }

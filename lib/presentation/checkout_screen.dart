@@ -566,7 +566,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Required';
                 final digits = v.replaceAll(RegExp(r'\D'), '');
-                if (digits.length != 10) return 'Enter a valid 10-digit phone number';
+                if (digits.length < 10 || digits.length > 11) return 'Enter a valid phone number (10–11 digits)';
                 return null;
               }),
           const SizedBox(height: 10),
