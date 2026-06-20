@@ -82,11 +82,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const Color _surface = Color(0xFFF8FAFC);
 
   Future<void> _showDeleteAccountDialog() async {
+    final reasonCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Delete Account',
+        title: const Text('Request Account Deletion',
             style: TextStyle(fontWeight: FontWeight.bold, color: _ink)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
@@ -95,21 +96,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: Colors.redAccent.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Row(children: [
-              const Icon(Icons.warning_amber_rounded,
+            child: const Row(children: [
+              Icon(Icons.admin_panel_settings_rounded,
                   color: Colors.redAccent, size: 20),
-              const SizedBox(width: 8),
-              const Expanded(
+              SizedBox(width: 8),
+              Expanded(
                 child: Text(
-                  'This will permanently delete your account and all data. This cannot be undone.',
+                  'Your request will be sent to the admin for review. The admin will decide to delete or deactivate your account based on your order history.',
                   style: TextStyle(fontSize: 13, color: Colors.redAccent, height: 1.4),
                 ),
               ),
             ]),
           ),
-          const SizedBox(height: 12),
-          const Text('Are you sure you want to continue?',
-              style: TextStyle(color: _slate, fontSize: 13)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: reasonCtrl,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Reason for deletion (optional)',
+              hintStyle: TextStyle(color: _slate, fontSize: 13),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
         ]),
         actions: [
           TextButton(
@@ -123,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               decoration: BoxDecoration(
                   color: Colors.redAccent,
                   borderRadius: BorderRadius.circular(10)),
-              child: const Text('Delete Account',
+              child: const Text('Submit Request',
                   style: TextStyle(color: Colors.white,
                       fontWeight: FontWeight.w600, fontSize: 13)),
             ),
@@ -132,26 +141,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (confirmed == true && mounted) {
-      // Call backend delete endpoint
-      final authProvider = context.read<AuthProvider>();
+      final reason = reasonCtrl.text.trim();
       final res = await ApiClient.delete('/api/auth/account',
-          body: {'confirm': true});
+          body: reason.isNotEmpty ? {'reason': reason} : {});
       if (!mounted) return;
       if (!res.isSuccess) {
-        _showSnackBar('Failed to delete account: ${res.error ?? 'Unknown error'}');
+        _showSnackBar(res.error ?? 'Failed to submit request');
         return;
       }
-      await _clearAllLocalData();
-      await authProvider.signOut();
-      if (!mounted) return;
-      _clearProviders();
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const AuthParentPage()),
-          (_) => false,
-        );
-      }
+      _showSnackBar('Deletion request submitted. Admin will review and take action shortly.');
     }
   }
 

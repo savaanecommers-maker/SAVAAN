@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'data/api_client.dart';
+import 'data/deep_link_service.dart';
+import 'presentation/product_detail_screen.dart';
 import 'presentation/splash_screen.dart';
 import 'presentation/categories_screen.dart';
 import 'presentation/cart_screen.dart';
 import 'presentation/wishlist_screen.dart';
 import 'presentation/profile_screen.dart';
+import 'presentation/auth_screens.dart';
 import 'presentation/notification_screen.dart';
 import 'presentation/orders_screen.dart';
 import 'providers/auth_provider.dart';
@@ -51,6 +54,19 @@ void main() async {
 
   // Pre-warm token cache before app starts so splash reads are instant
   ApiClient.getAccessToken().catchError((_) => null);
+
+  // Start listening for deep links while app is running (warm/hot start)
+  DeepLinkService.instance.init(onLink: (productId) async {
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+    final loggedIn = await ApiClient.isLoggedIn;
+    if (loggedIn) {
+      nav.pushNamed('/product', arguments: productId);
+    } else {
+      DeepLinkService.instance.setPending(productId);
+      nav.pushNamedAndRemoveUntil('/auth', (_) => false);
+    }
+  });
 
   runApp(const MyApp());
 }
@@ -129,10 +145,18 @@ class MyApp extends StatelessWidget {
           '/profile':       (_) => const ProfileScreen(),
           '/orders':        (_) => const OrdersScreen(),
           '/notifications': (_) => const NotificationsScreen(),
+          '/auth':          (_) => const AuthParentPage(),
         },
         onGenerateRoute: (settings) {
+          if (settings.name == '/product') {
+            final productId = settings.arguments as String?;
+            if (productId != null) {
+              return MaterialPageRoute(
+                builder: (_) => ProductDetailScreen(productId: productId),
+              );
+            }
+          }
           // Handle deep links from push notifications.
-          // Route format: /orders/<id>, /product/<id>, etc.
           final uri = Uri.tryParse(settings.name ?? '');
           if (uri == null) return null;
           final segments = uri.pathSegments;

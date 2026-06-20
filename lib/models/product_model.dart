@@ -172,11 +172,8 @@ class ProductModel {
   // Whether product is low stock (5 or fewer)
   bool get isLowStock => stock > 0 && stock <= 5;
 
-  // Deep-link share URL — uses slug if present, falls back to id
-  String get shareUrl {
-    final handle = (slug != null && slug!.isNotEmpty) ? slug! : id;
-    return 'https://savaan.in/product/$handle';
-  }
+  // Deep-link share URL — custom scheme that opens the app directly
+  String get shareUrl => 'savaan://product/$id';
 
   // First image or null
   String? get primaryImage => images.isNotEmpty ? images[0] : null;
@@ -302,7 +299,12 @@ class ProductVariant {
 
     List<String> imgs = [];
     final rawImgs = json['images'] ?? json['variant_images'];
-    if (rawImgs is List) imgs = rawImgs.map((e) => e.toString()).toList();
+    if (rawImgs is List) {
+      imgs = rawImgs
+          .map((e) => ApiClient.fixImageUrl(e.toString()))
+          .whereType<String>()
+          .toList();
+    }
 
     Map<String, String> attrs = {};
     final rawAttrs = json['attributes'] ?? json['variant_attributes'];

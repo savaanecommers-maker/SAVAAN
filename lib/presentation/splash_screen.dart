@@ -6,6 +6,8 @@ import '../providers/cart_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/wishlist_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/homepage_provider.dart';
+import '../data/deep_link_service.dart';
 import 'auth_screens.dart';
 import 'home_screen.dart';
 
@@ -116,11 +118,20 @@ class _SplashScreenState extends State<SplashScreen>
       loggedIn = await ApiClient.isLoggedIn;
     } catch (_) {}
 
+    // Check for a deep link that launched the app (cold start)
+    final deepLinkProductId = await DeepLinkService.instance.getInitialProductId();
+
     if (loggedIn && mounted) {
       context.read<AuthProvider>().loadUser();
       context.read<CartProvider>().loadCart();
       context.read<WishlistProvider>().loadIds();
       context.read<ProductProvider>().loadHomeData();
+      context.read<HomepageProvider>().load();
+    }
+
+    if (deepLinkProductId != null) {
+      // Always store it so HomeScreen / AuthScreen can pick it up
+      DeepLinkService.instance.setPending(deepLinkProductId);
     }
 
     _doNavigate(loggedIn ? const HomeScreen() : const AuthParentPage());

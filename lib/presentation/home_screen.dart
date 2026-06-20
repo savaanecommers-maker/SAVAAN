@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/api_client.dart';
+import '../data/deep_link_service.dart';
 import '../models/brand_model.dart';
 import '../models/category_model.dart';
 import '../models/homepage_section.dart';
@@ -149,11 +150,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     context.read<WishlistProvider>().loadIds();
     _fetchNotifCount();
 
-    await Future.wait([sets.load(), hp.load()]);
+    // Settings load in background — defaults are sufficient until it arrives.
+    sets.load().then((_) {
+      if (mounted) {
+        context.read<CartProvider>().updateShippingSettings(
+          sets.shippingCharge, sets.freeShippingAbove);
+      }
+    });
+
+    // Only wait for homepage data — this is what controls the skeleton.
+    await hp.load();
 
     if (!mounted) return;
-    context.read<CartProvider>().updateShippingSettings(
-      sets.shippingCharge, sets.freeShippingAbove);
 
     final bannerCount = hp.banners.length;
     _startBannerSlide(bannerCount);
@@ -165,20 +173,59 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       _startRow1Scroll(cats.length);
       _startRow2Scroll(cats.length);
     }
+
+    // Handle any pending deep-link product (cold start or post-login redirect)
+    final pendingId = DeepLinkService.instance.pendingProductId;
+    if (pendingId != null && mounted) {
+      DeepLinkService.instance.clearPending();
+      Navigator.of(context).pushNamed('/product', arguments: pendingId);
+    }
   }
 
   // ── Timers ────────────────────────────────────────────────────
   void _startBannerSlide(int count) {
     if (count < 2) return;
     _bannerTimer?.cancel();
+    // Jump to a high virtual page first so we can scroll in both directions
+    // without hitting the start boundary (index 0). Retries across frames —
+    // see _jumpWhenReady for why a single-shot check isn't reliable on a
+    // fresh install with no cache.
+    void jumpWhenReady([int attemptsLeft = 30]) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_bannerController.hasClients) {
+          _bannerController.jumpToPage(10000);
+        } else if (attemptsLeft > 0) {
+          jumpWhenReady(attemptsLeft - 1);
+        }
+      });
+    }
+    jumpWhenReady();
     _bannerTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted || !_bannerController.hasClients) return;
-      final next = (_currentBannerPage + 1) % count;
+      final currentVirtual = _bannerController.page?.round() ?? 10000;
       _bannerController.animateToPage(
-        next,
+        currentVirtual + 1,
         duration: const Duration(milliseconds: 600),
         curve: Curves.easeInOut,
       );
+    });
+  }
+
+  // Retries jumpTo across multiple frames instead of a single attempt —
+  // on a fresh install with no cache, ~20 sections build simultaneously for
+  // the first time and the ListView may not be attached to its controller
+  // on the very next frame. A one-shot check silently skips the initial
+  // jump in that case and is never retried, leaving the row un-centred and
+  // prone to broken drag behaviour. Bounded so it can't loop forever.
+  void _jumpWhenReady(ScrollController controller, double offset, [int attemptsLeft = 30]) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (controller.hasClients) {
+        controller.jumpTo(offset);
+      } else if (attemptsLeft > 0) {
+        _jumpWhenReady(controller, offset, attemptsLeft - 1);
+      }
     });
   }
 
@@ -186,11 +233,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   void _startRow1Scroll(int count) {
     if (count == 0) return;
     final initialOffset = _catItemW * count * _catMid;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _catRow1Controller.hasClients) {
-        _catRow1Controller.jumpTo(initialOffset);
-      }
-    });
+    _jumpWhenReady(_catRow1Controller, initialOffset);
     _catRow1Ticker?.dispose();
     Duration lastTick = Duration.zero;
     double carry = 0.0; // pixel accumulator — only call jumpTo when ≥1 pixel ready
@@ -218,11 +261,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     // show opposite halves of the full list at any given instant.
     final halfCycle = _catItemW * (count ~/ 2);
     final initialOffset = _catItemW * count * _catMid + halfCycle;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _catRow2Controller.hasClients) {
-        _catRow2Controller.jumpTo(initialOffset);
-      }
-    });
+    _jumpWhenReady(_catRow2Controller, initialOffset);
     _catRow2Ticker?.dispose();
     Duration lastTick = Duration.zero;
     double carry2 = 0.0; // pixel accumulator — prevents sub-pixel jitter
@@ -306,53 +345,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       }
     }
 
+    // Always use the SAME outer scrollable (RefreshIndicator > CustomScrollView)
+    // for both the loading-skeleton and the loaded state. Swapping to a
+    // different widget type here (e.g. SingleChildScrollView while loading)
+    // forces Flutter to tear down and rebuild the entire scrollable subtree —
+    // including every nested horizontal carousel's gesture/scroll state — at
+    // the exact moment ~20 sections build simultaneously on a fresh install
+    // with no cache. That's what caused carousels to be unscrollable until
+    // the next cold start (when cached data skips the skeleton phase entirely).
+    final slivers = hp.isLoading
+        ? _buildSkeletonSlivers()
+        : _buildContentSlivers(hp, productSections, discountSection);
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.white,
       drawer: _buildDrawer(),
       body: SafeArea(
-        child: hp.isLoading
-            ? _buildSkeleton()
-            : RefreshIndicator(
-                color: _teal,
-                onRefresh: _loadData,
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    // 1. Top bar + search
-                    SliverToBoxAdapter(child: _buildTopBar()),
-                    SliverToBoxAdapter(child: _buildSearchBar()),
-                    // 2. Hero banner
-                    SliverToBoxAdapter(child: _buildBannerSection(hp.banners)),
-                    // 3. Auto-scrolling categories
-                    SliverToBoxAdapter(child: _buildCategoryRow(hp.categories)),
-                    // 4. Trust strip
-                    SliverToBoxAdapter(child: _buildTrustStrip()),
-                    // 5–19. Dynamic product sections (flash deals, new arrivals …)
-                    ...productSections.map((s) =>
-                        SliverToBoxAdapter(child: RepaintBoundary(child: _buildSection(s)))),
-                    // 20. Featured brands
-                    if (hp.brands.isNotEmpty)
-                      SliverToBoxAdapter(child: RepaintBoundary(child: _buildBrandStrip(hp.brands))),
-                    // 21. Extra discount banner (admin-configurable via HomepageSections admin)
-                    if (discountSection != null)
-                      SliverToBoxAdapter(child: RepaintBoundary(child: _buildDiscountBannerCard(discountSection))),
-                    // 22. Luxury Edit — curated luxury collections (admin via Luxury Edit page)
-                    if (hp.luxuryCollections.isNotEmpty)
-                      SliverToBoxAdapter(child: RepaintBoundary(child: _buildLuxuryEditSection(hp.luxuryCollections))),
-                    // 23. Customer reviews (real, from DB)
-                    if (hp.featuredReviews.isNotEmpty)
-                      SliverToBoxAdapter(child: _buildReviewsSection(hp.featuredReviews)),
-                    // 24. Follow us
-                    SliverToBoxAdapter(child: _buildFollowUsSection(hp.socialLinks)),
-
-
-                  ],
-                ),
-              ),
+        child: RefreshIndicator(
+          color: _teal,
+          onRefresh: _loadData,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: slivers,
+          ),
+        ),
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
+  }
+
+  List<Widget> _buildContentSlivers(
+    HomepageProvider hp,
+    List<HomepageSection> productSections,
+    HomepageSection? discountSection,
+  ) {
+    return [
+      // 1. Top bar + search
+      SliverToBoxAdapter(child: _buildTopBar()),
+      SliverToBoxAdapter(child: _buildSearchBar()),
+      // 2. Hero banner
+      SliverToBoxAdapter(child: _buildBannerSection(hp.banners)),
+      // 3. Auto-scrolling categories
+      SliverToBoxAdapter(child: _buildCategoryRow(hp.categories)),
+      // 4. Trust strip
+      SliverToBoxAdapter(child: _buildTrustStrip()),
+      // 5–19. Dynamic product sections (flash deals, new arrivals …)
+      ...productSections.map((s) =>
+          SliverToBoxAdapter(child: RepaintBoundary(child: _buildSection(s)))),
+      // 20. Featured brands
+      if (hp.brands.isNotEmpty)
+        SliverToBoxAdapter(child: RepaintBoundary(child: _buildBrandStrip(hp.brands))),
+      // 21. Extra discount banner (admin-configurable via HomepageSections admin)
+      if (discountSection != null)
+        SliverToBoxAdapter(child: RepaintBoundary(child: _buildDiscountBannerCard(discountSection))),
+      // 22. Luxury Edit — curated luxury collections (admin via Luxury Edit page)
+      if (hp.luxuryCollections.isNotEmpty)
+        SliverToBoxAdapter(child: RepaintBoundary(child: _buildLuxuryEditSection(hp.luxuryCollections))),
+      // 23. Customer reviews (real, from DB)
+      if (hp.featuredReviews.isNotEmpty)
+        SliverToBoxAdapter(child: _buildReviewsSection(hp.featuredReviews)),
+      // 24. Follow us
+      SliverToBoxAdapter(child: _buildFollowUsSection(hp.socialLinks)),
+    ];
   }
 
   // ── TOP BAR ──────────────────────────────────────────────────
@@ -469,114 +524,138 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   // ── BANNER CAROUSEL ──────────────────────────────────────────
   Widget _buildBannerSection(List<Map<String, dynamic>> banners) {
     if (banners.isEmpty) return _buildHeroBanner();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Column(children: [
-        SizedBox(
-          height: 190,
-          child: PageView.builder(
-            controller: _bannerController,
-            itemCount: banners.length,
-            onPageChanged: (i) => setState(() => _currentBannerPage = i),
-            itemBuilder: (ctx, i) => _buildBannerCard(banners[i]),
-          )),
-        if (banners.length > 1) ...[
-          const SizedBox(height: 10),
-          Row(mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(banners.length, (i) => AnimatedContainer(
+    if (banners.length >= 2 && (_bannerTimer == null || !_bannerTimer!.isActive)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startBannerSlide(banners.length);
+      });
+    }
+    // AspectRatio 2:1 matches the recommended 1200×600 upload size exactly.
+    // This is responsive — correct on small, medium, large phones and tablets.
+    return Column(children: [
+      const SizedBox(height: 10),
+      // ── Full-bleed banner carousel ─────────────────────────────
+      AspectRatio(
+        aspectRatio: 2.0,
+        child: PageView.builder(
+          controller: _bannerController,
+          itemCount: banners.length == 1 ? 1 : null,
+          onPageChanged: (i) =>
+              setState(() => _currentBannerPage = i % banners.length),
+          itemBuilder: (ctx, i) => _buildBannerCard(banners[i % banners.length]),
+        ),
+      ),
+      // ── Dot indicators ────────────────────────────────────────
+      if (banners.length > 1) ...[
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(banners.length, (i) {
+            final active = i == _currentBannerPage;
+            return AnimatedContainer(
               duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
               margin: const EdgeInsets.symmetric(horizontal: 3),
-              width:  i == _currentBannerPage ? 20 : 6,
+              width:  active ? 24 : 6,
               height: 6,
               decoration: BoxDecoration(
-                color: i == _currentBannerPage ? _teal : _border,
-                borderRadius: BorderRadius.circular(3))))),
-        ],
-      ]));
+                color: active ? _teal : Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
+      ],
+    ]);
+  }
+
+  void _navigateBanner(Map<String, dynamic> banner) {
+    ApiClient.post('/api/homepage/analytics',
+        {'event_type': 'banner_click', 'metadata': {'banner_id': banner['id']}})
+        .catchError((_) => const ApiResponse(data: null, error: 'ignored'));
+    final linkType  = banner['link_type']?.toString() ?? 'none';
+    final linkValue = banner['link_value']?.toString() ?? '';
+    switch (linkType) {
+      case 'flash_deals':
+        Navigator.push(context, MaterialPageRoute(
+            builder: (_) => const ProductListScreen(title: 'Flash Deals', showFlashDeals: true)));
+        break;
+      case 'category':
+      case 'subcategory':
+        if (linkValue.isNotEmpty)
+          Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ProductListScreen(title: linkValue)));
+        break;
+      case 'brand':
+        if (linkValue.isNotEmpty)
+          Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ProductListScreen(title: linkValue, brandName: linkValue)));
+        break;
+      case 'luxury_collection':
+        if (linkValue.isNotEmpty)
+          Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ProductListScreen(title: 'Luxury Collection', collectionId: linkValue)));
+        break;
+      case 'product':
+        if (linkValue.isNotEmpty)
+          Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ProductDetailScreen(productId: linkValue)));
+        break;
+      case 'all_products':
+        Navigator.push(context, MaterialPageRoute(
+            builder: (_) => const ProductListScreen(title: 'All Products')));
+        break;
+      case 'categories':
+        Navigator.push(context, MaterialPageRoute(
+            builder: (_) => const CategoriesScreen()));
+        break;
+    }
   }
 
   Widget _buildBannerCard(Map<String, dynamic> banner) {
     return GestureDetector(
-      onTap: () {
-        // Track banner click
-        ApiClient.post('/api/homepage/analytics',
-            {'event_type': 'banner_click', 'metadata': {'banner_id': banner['id']}})
-            .catchError((_) => const ApiResponse(data: null, error: 'ignored'));
+      onTap: () => _navigateBanner(banner),
+      // No horizontal padding — truly edge-to-edge so nothing clips
+      child: Stack(fit: StackFit.expand, children: [
+        // ── Image fills 100% width, fitted to show full content ──
+        banner['image_url'] != null
+            ? CachedNetworkImage(
+                imageUrl: ApiClient.fixImageUrl(banner['image_url'].toString()) ?? '',
+                fit: BoxFit.fill,
+                alignment: Alignment.center,
+                placeholder: (_, _) => _bannerShimmer(),
+                errorWidget:  (_, _, _) => _bannerGradient())
+            : _bannerGradient(),
 
-        final linkType  = banner['link_type']?.toString() ?? 'none';
-        final linkValue = banner['link_value']?.toString() ?? '';
-
-        switch (linkType) {
-          case 'flash_deals':
-            Navigator.push(context, MaterialPageRoute(
-                builder: (_) => const ProductListScreen(
-                  title: 'Flash Deals', showFlashDeals: true)));
-            break;
-          case 'category':
-          case 'subcategory':
-            if (linkValue.isNotEmpty) {
-              Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ProductListScreen(title: linkValue)));
-            }
-            break;
-          case 'brand':
-            if (linkValue.isNotEmpty) {
-              Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ProductListScreen(title: linkValue, brandName: linkValue)));
-            }
-            break;
-          case 'luxury_collection':
-            if (linkValue.isNotEmpty) {
-              Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ProductListScreen(title: 'Luxury Collection', collectionId: linkValue)));
-            }
-            break;
-          case 'product':
-            if (linkValue.isNotEmpty) {
-              Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ProductDetailScreen(productId: linkValue)));
-            }
-            break;
-          case 'all_products':
-            Navigator.push(context, MaterialPageRoute(
-                builder: (_) => const ProductListScreen(title: 'All Products')));
-            break;
-          case 'categories':
-            Navigator.push(context, MaterialPageRoute(
-                builder: (_) => const CategoriesScreen()));
-            break;
-          // 'none' or unknown — no navigation
-        }
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(fit: StackFit.expand, children: [
-          banner['image_url'] != null
-              ? CachedNetworkImage(
-                  imageUrl: ApiClient.fixImageUrl(banner['image_url'].toString()) ?? '',
-                  fit: BoxFit.cover,
-                  placeholder: (_, _) => _bannerGradient(),
-                  errorWidget: (_, _, _) => _bannerGradient())
-              : _bannerGradient(),
-          if (banner['title'] != null)
-            Positioned(bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 32, 16, 14),
-                decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [Colors.black87, Colors.transparent])),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text(banner['title'].toString(),
-                      style: const TextStyle(color: Colors.white,
-                          fontSize: 16, fontWeight: FontWeight.w800)),
-                  if (banner['subtitle'] != null)
-                    Text(banner['subtitle'].toString(),
-                        style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                ]))),
-        ])));
+        // ── Subtle vignette only at the very bottom ─────────────
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0.6, 1.0],
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.22),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
   }
+
+  Widget _bannerShimmer() => Container(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [Colors.grey.shade200, Colors.grey.shade100, Colors.grey.shade200],
+        stops: const [0.0, 0.5, 1.0],
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+      ),
+    ),
+  );
 
   Widget _bannerGradient() => Container(
     decoration: const BoxDecoration(
@@ -1706,42 +1785,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   }
 
   // ── SKELETON LOADER ───────────────────────────────────────────
-  Widget _buildSkeleton() {
-    return SingleChildScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      child: Column(children: [
+  // Returns slivers (not a standalone scrollable) so the loading state
+  // shares the exact same CustomScrollView/RefreshIndicator as the loaded
+  // state — only the sliver children swap, the outer Scrollable never does.
+  List<Widget> _buildSkeletonSlivers() {
+    Widget shimmerBox({double? width, required double height, double radius = 0}) =>
+        Container(width: width, height: height,
+            decoration: BoxDecoration(color: _surface, borderRadius: BorderRadius.circular(radius)));
+
+    return [
+      SliverToBoxAdapter(child: Column(children: [
         // Top bar shimmer
         Container(margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             height: 44, color: _surface),
         const SizedBox(height: 14),
         // Search bar shimmer
         Container(margin: const EdgeInsets.symmetric(horizontal: 16),
-            height: 48, decoration: BoxDecoration(color: _surface,
-                borderRadius: BorderRadius.circular(14))),
+            child: shimmerBox(height: 48, radius: 14)),
         const SizedBox(height: 16),
         // Banner shimmer
         Container(margin: const EdgeInsets.symmetric(horizontal: 16),
-            height: 190, decoration: BoxDecoration(color: _surface,
-                borderRadius: BorderRadius.circular(20))),
+            child: shimmerBox(height: 220, radius: 20)),
         const SizedBox(height: 22),
         // Category dual-row shimmer
         _buildCategoryShimmer(),
-        // Section shimmer x3
-        ...List.generate(3, (_) => Column(children: [
-          Container(margin: const EdgeInsets.fromLTRB(16, 22, 16, 12),
-              width: 160, height: 20, decoration: BoxDecoration(
-                  color: _surface, borderRadius: BorderRadius.circular(6))),
-          SizedBox(height: 246,  // matches live carousel height
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: 4,
-              itemBuilder: (_, _) => Container(
-                width: 155, margin: const EdgeInsets.only(right: 14),
-                decoration: BoxDecoration(color: _surface,
-                    borderRadius: BorderRadius.circular(16))))),
-        ])),
-      ]));
+      ])),
+      // Section shimmer x3
+      ...List.generate(3, (_) => SliverToBoxAdapter(child: Column(children: [
+        Container(margin: const EdgeInsets.fromLTRB(16, 22, 16, 12),
+            child: shimmerBox(width: 160, height: 20, radius: 6)),
+        SizedBox(height: 246,  // matches live carousel height
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: 4,
+            itemBuilder: (_, _) => Container(
+              width: 155, margin: const EdgeInsets.only(right: 14),
+              child: shimmerBox(height: double.infinity, radius: 16)))),
+      ]))),
+    ];
   }
 
   // ── CATEGORY SHIMMER (skeleton) ───────────────────────────────

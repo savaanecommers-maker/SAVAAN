@@ -12,11 +12,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Or pass at build time without editing this file:
 ///   flutter run --dart-define=API_BASE=http://192.168.1.5:4000
 ///
-/// ⚠️  Both your phone and PC must be on the SAME WiFi network.
-/// ⚠️  Allow port 4000 through Windows Firewall (see below).
 const String kApiBase = String.fromEnvironment(
   'API_BASE',
-  defaultValue: 'http://10.0.2.2:4000',
+  defaultValue: 'https://api.savaan.in',
 );
 
 const _kAccessToken  = 'access_token';
@@ -76,10 +74,12 @@ class ApiClient {
   }
 
   static Future<bool> get isLoggedIn async {
-    final token = await getAccessToken();
-    if (token == null) return false;
+    // A valid refresh token means the user is logged in.
+    // The short-lived access token will be silently refreshed on the first API call.
+    final refresh = await getRefreshToken();
+    if (refresh == null) return false;
     try {
-      final parts = token.split('.');
+      final parts = refresh.split('.');
       if (parts.length != 3) return false;
       final payload = json.decode(
         utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))
@@ -119,17 +119,18 @@ class ApiClient {
   static Future<ApiResponse> _send(
     Future<http.Response> Function(Map<String, String> headers) makeReq, {
     bool auth = true,
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     try {
       var headers = await _headers(auth: auth);
-      var res = await makeReq(headers).timeout(const Duration(seconds: 12));
+      var res = await makeReq(headers).timeout(timeout);
 
       // Try token refresh on 401
       if (res.statusCode == 401 && auth) {
         final refreshed = await _tryRefresh();
         if (refreshed) {
           headers = await _headers(auth: auth);
-          res = await makeReq(headers).timeout(const Duration(seconds: 12));
+          res = await makeReq(headers).timeout(timeout);
         }
       }
 
@@ -175,8 +176,8 @@ class ApiClient {
   static Future<ApiResponse> get(String path, {bool auth = true}) =>
       _send((h) => http.get(Uri.parse('$kApiBase$path'), headers: h), auth: auth);
 
-  static Future<ApiResponse> post(String path, Map<String, dynamic> body, {bool auth = true}) =>
-      _send((h) => http.post(Uri.parse('$kApiBase$path'), headers: h, body: json.encode(body)), auth: auth);
+  static Future<ApiResponse> post(String path, Map<String, dynamic> body, {bool auth = true, Duration timeout = const Duration(seconds: 20)}) =>
+      _send((h) => http.post(Uri.parse('$kApiBase$path'), headers: h, body: json.encode(body)), auth: auth, timeout: timeout);
 
   static Future<ApiResponse> put(String path, Map<String, dynamic> body) =>
       _send((h) => http.put(Uri.parse('$kApiBase$path'), headers: h, body: json.encode(body)));

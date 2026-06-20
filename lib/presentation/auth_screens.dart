@@ -5,6 +5,8 @@ import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/wishlist_provider.dart';
+import '../data/deep_link_service.dart';
+import '../providers/homepage_provider.dart';
 import 'home_screen.dart';
 
 class AuthParentPage extends StatefulWidget {
@@ -70,10 +72,17 @@ class _AuthParentPageState extends State<AuthParentPage>
     if (!mounted) return;
     context.read<ProductProvider>().loadHomeData();
     context.read<WishlistProvider>().loadIds();
+    context.read<HomepageProvider>().load();
     await Future.wait([
       context.read<AuthProvider>().loadUser(),
       context.read<CartProvider>().loadCart(),
     ]);
+  }
+
+  /// Navigate to HomeScreen after login; if a deep-link product is pending,
+  /// HomeScreen._init() will push ProductDetailScreen on top automatically.
+  void _navigateAfterLogin(NavigatorState nav) {
+    nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -100,7 +109,7 @@ class _AuthParentPageState extends State<AuthParentPage>
     if (mounted) {
       final nav = Navigator.of(context);
       await _initProviders();
-      nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+      _navigateAfterLogin(nav);
     }
   }
 
@@ -121,7 +130,7 @@ class _AuthParentPageState extends State<AuthParentPage>
         if (mounted) {
           final nav = Navigator.of(context);
           await _initProviders();
-          nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+          _navigateAfterLogin(nav);
         }
       }
     } else if (_currentView == 'signup') {
@@ -136,7 +145,7 @@ class _AuthParentPageState extends State<AuthParentPage>
         if (mounted) {
           final nav = Navigator.of(context);
           await _initProviders();
-          nav.pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+          _navigateAfterLogin(nav);
         }
       }
     } else if (_currentView == 'forgot') {
@@ -475,10 +484,7 @@ class _AuthParentPageState extends State<AuthParentPage>
   }
 
   Widget _googleIcon() {
-    return SizedBox(
-      width: 20, height: 20,
-      child: CustomPaint(painter: _GoogleLogoPainter()),
-    );
+    return Image.asset('assets/google logo.png', width: 22, height: 22);
   }
 
   Widget _buildTrustBadges() {
@@ -510,31 +516,3 @@ class _AuthParentPageState extends State<AuthParentPage>
   }
 }
 
-// ── Google Logo Painter ───────────────────────────────────────
-class _GoogleLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint  = Paint()..style = PaintingStyle.fill;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-
-    paint.color = const Color(0xFF4285F4);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), -0.5, 1.6, true, paint);
-    paint.color = const Color(0xFF34A853);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 1.1, 1.6, true, paint);
-    paint.color = const Color(0xFFFBBC05);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 2.7, 0.8, true, paint);
-    paint.color = const Color(0xFFEA4335);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 3.5, 0.9, true, paint);
-
-    paint.color = Colors.white;
-    canvas.drawCircle(center, radius * 0.6, paint);
-    canvas.drawRect(
-      Rect.fromLTWH(center.dx, center.dy - radius * 0.2, radius * 0.95, radius * 0.4),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

@@ -62,9 +62,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     if (widget.product != null) {
+      // Use pre-loaded product for instant render, then fetch full detail for variants
       _product = widget.product;
       _isLoading = false;
       _preselectVariant();
+      _loadProduct(); // always fetch full detail to get variants
     } else {
       _loadProduct();
     }
@@ -86,7 +88,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       if (mounted) {
         setState(() {
           _reviews = res.isSuccess && res.data != null
-              ? (res.data!['_list'] as List? ?? [])
+              ? ((res.data!['reviews'] ?? res.data!['_list']) as List? ?? [])
                   .map((r) => Map<String, dynamic>.from(r as Map))
                   .toList()
               : [];
@@ -157,10 +159,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       _selectedImageIndex  = 0;
       final hasSizes = variants.any((v) => v.size != null);
       if (!hasSizes) {
-        _selectedVariant = variants.firstWhere(
-          (v) => v.color == color,
-          orElse: () => variants.first,
-        );
+        final match = variants.where((v) => v.color == color);
+        _selectedVariant = match.isNotEmpty
+            ? match.first
+            : variants.isNotEmpty ? variants.first : null;
       } else if (_selectedSize != null) {
         final match = variants.where(
           (v) => v.color == color && v.size == _selectedSize,
@@ -544,15 +546,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(alpha: 0.1),
+                color: Colors.green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text('-${p.discountPercent}%',
-                  style: const TextStyle(color: Colors.redAccent,
+              child: Text('${p.discountPercent}% off',
+                  style: const TextStyle(color: Colors.green,
                       fontWeight: FontWeight.bold, fontSize: 13)),
             ),
           ],
         ]),
+        // Savings line — "Save ₹7,000 (17.72% off)"
+        if (p.originalPrice != null && p.savedAmount > 0) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Save ${_fmtPrice(p.savedAmount)} on this product',
+            style: const TextStyle(fontSize: 12, color: Colors.green,
+                fontWeight: FontWeight.w500),
+          ),
+        ],
         const SizedBox(height: 6),
 
         // Stock status — for variant products show "Select size for availability"
@@ -580,7 +591,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           ]),
         ] else ...[
-          Text('${p.variants.where((v) => v.isInStock).length} sizes available',
+          Text('${p.variants.where((v) => v.isInStock).length} variant${p.variants.where((v) => v.isInStock).length == 1 ? '' : 's'} available',
               style: TextStyle(fontSize: 13, color: _teal,
                   fontWeight: FontWeight.w500)),
         ],
@@ -689,49 +700,66 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
         // ── Color selector ────────────────────────────────────
         if (hasColors) ...[
-          Row(children: [
-            const Text('Color',
-                style: TextStyle(fontSize: 14,
-                    fontWeight: FontWeight.w600, color: _ink)),
-            const SizedBox(width: 8),
-            Text(_selectedColor ?? 'Select a color',
-                style: TextStyle(
-                    fontSize: 13,
-                    color: _selectedColor != null ? _slate : Colors.orange,
-                    fontWeight: _selectedColor == null ? FontWeight.w600 : FontWeight.normal)),
-          ]),
+          RichText(text: TextSpan(
+            text: 'Brand Color',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink),
+            children: _selectedColor != null ? [
+              TextSpan(text: ':  $_selectedColor',
+                  style: const TextStyle(fontWeight: FontWeight.w400, color: _slate)),
+            ] : [],
+          )),
           const SizedBox(height: 10),
           Wrap(
-            spacing: 10, runSpacing: 10,
+            spacing: 8, runSpacing: 8,
             children: allColors.map((color) {
               final isSelected = _selectedColor == color;
-              // Check if any variant of this color is in stock
               final hasStock = p.variants.any((v) => v.color == color && v.stock > 0);
+              // Use variant image thumbnail if available
+              final variantImg = p.variants
+                  .where((v) => v.color == color && v.images.isNotEmpty)
+                  .map((v) => v.images.first)
+                  .firstOrNull;
               return GestureDetector(
-                onTap: () => _onColorSelected(color),
+                onTap: hasStock ? () => _onColorSelected(color) : null,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: 38, height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: _colorFromName(color),
-                    shape: BoxShape.circle,
+                    color: isSelected ? _ink : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isSelected ? _teal : Colors.transparent,
-                      width: 2.5,
+                      color: isSelected ? _ink : _border,
+                      width: isSelected ? 2 : 1.5,
                     ),
                     boxShadow: isSelected ? [BoxShadow(
-                        color: _teal.withValues(alpha: 0.3), blurRadius: 8)] : null,
+                        color: _ink.withValues(alpha: 0.15), blurRadius: 6, offset: const Offset(0, 2))] : null,
                   ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      if (isSelected)
-                        const Icon(Icons.check, color: Colors.white, size: 18),
-                      if (!hasStock)
-                        // Diagonal line = out of stock in all sizes of this color
-                        CustomPaint(painter: _StrikethroughPainter()),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    // Thumbnail image OR color dot
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: variantImg != null
+                          ? CachedNetworkImage(
+                              imageUrl: variantImg,
+                              width: 28, height: 28,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, _, _) => _colorDot(color, isSelected),
+                            )
+                          : _colorDot(color, isSelected),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(color,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color: isSelected ? Colors.white : (hasStock ? _ink : _slate),
+                        )),
+                    if (!hasStock) ...[
+                      const SizedBox(width: 4),
+                      Text('(OOS)',
+                          style: TextStyle(fontSize: 10, color: isSelected ? Colors.white54 : _slate)),
                     ],
-                  ),
+                  ]),
                 ),
               );
             }).toList(),
@@ -741,30 +769,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
         // ── Size selector ─────────────────────────────────────
         if (hasSizes) ...[
-          Row(children: [
-            Text(availableSizes.isNotEmpty ? 'Size' : 'Size',
-                style: const TextStyle(fontSize: 14,
-                    fontWeight: FontWeight.w600, color: _ink)),
-            const SizedBox(width: 8),
-            Text(
-              _selectedSize ?? (hasColors && _selectedColor == null
-                  ? 'Choose color first'
-                  : 'Select a size'),
-              style: TextStyle(
-                fontSize: 13,
-                color: _selectedSize != null ? _slate
-                    : (_variantRequired ? Colors.redAccent : Colors.orange),
-                fontWeight: FontWeight.w500,
+          RichText(text: TextSpan(
+            text: 'Size',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink),
+            children: _selectedSize != null ? [
+              TextSpan(text: ':  $_selectedSize',
+                  style: const TextStyle(fontWeight: FontWeight.w400, color: _slate)),
+            ] : [
+              TextSpan(
+                text: hasColors && _selectedColor == null ? '  — choose color first' : '  — select a size',
+                style: TextStyle(fontWeight: FontWeight.w400,
+                    color: _variantRequired ? Colors.redAccent : Colors.orange, fontSize: 13),
               ),
-            ),
-          ]),
-          if (_variantRequired && _selectedVariant == null) ...[
-            const SizedBox(height: 4),
-            Text('⚠ Please select a size to continue',
-                style: const TextStyle(
-                    fontSize: 12, color: Colors.redAccent,
-                    fontWeight: FontWeight.w500)),
-          ],
+            ],
+          )),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8, runSpacing: 8,
@@ -855,12 +873,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
       final selectedVal = _selectedAttributes[key];
       widgets.add(const SizedBox(height: 16));
-      widgets.add(Row(children: [
-        Text(key, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink)),
-        const SizedBox(width: 8),
-        if (selectedVal != null)
-          Text(selectedVal, style: const TextStyle(fontSize: 13, color: _slate)),
-      ]));
+      widgets.add(RichText(text: TextSpan(
+        text: key,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink),
+        children: selectedVal != null ? [
+          TextSpan(text: ':  $selectedVal',
+              style: const TextStyle(fontWeight: FontWeight.w400, color: _slate)),
+        ] : [],
+      )));
       widgets.add(const SizedBox(height: 10));
       widgets.add(Wrap(
         spacing: 8, runSpacing: 8,
@@ -929,6 +949,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       count++;
     }
     return result.toString().split('').reversed.join();
+  }
+
+  Widget _colorDot(String colorName, bool isSelected) {
+    final c = _colorFromName(colorName);
+    return Container(
+      width: 18, height: 18,
+      decoration: BoxDecoration(
+        color: c,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? Colors.white54 : Colors.grey.shade300,
+          width: 1,
+        ),
+      ),
+    );
   }
 
   Color _colorFromName(String name) {
@@ -1425,7 +1460,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
                 ),
-                child: const Text('← Select a size above to continue',
+                child: const Text('← Select a variant above to continue',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Colors.amber,
                         fontWeight: FontWeight.w600)),

@@ -70,14 +70,13 @@ class AuthService {
       // serverClientId tells google_sign_in to include an ID token
       // signed for the Web OAuth client — this is what the backend verifies.
       // Must match GOOGLE_CLIENT_ID in backend .env
-      final GoogleSignInAccount? googleUser = await GoogleSignIn(
-        // iOS Client ID — required on iOS so google_sign_in can open the OAuth flow.
-        // On Android this is ignored; Android uses the SHA-1 registered in Google Cloud Console.
+      final googleSignIn = GoogleSignIn(
         clientId: '63800510010-lc2qvk6puch3680vmtirtufbvqa58gsm.apps.googleusercontent.com',
-        // Web Client ID — backend verifies the idToken against this audience.
-        // Must match GOOGLE_CLIENT_ID in backend .env
         serverClientId: '63800510010-svlp95uvhl1ot37c9vaummbir065putk.apps.googleusercontent.com',
-      ).signIn();
+      );
+      // Sign out first so the account picker always appears
+      await googleSignIn.signOut();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) return null; // user dismissed — not an error
 
       final GoogleSignInAuthentication googleAuth =

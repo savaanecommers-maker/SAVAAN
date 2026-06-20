@@ -28,6 +28,7 @@ dependencies:
   image_picker: ^1.1.2          # photo upload from gallery / camera
   share_plus: ^10.0.0           # native share sheet
   flutter_html: ^3.0.0-beta.2   # render HTML product descriptions
+  app_links: ^6.3.4             # Deep link handling (cold + warm start)
   webview_flutter: ^4.8.0       # For Cashfree JS checkout
 
 dev_dependencies:
@@ -44,3 +45,4 @@ flutter:
     - assets/topleft.png
     - assets/bottomright.png
     - assets/splashscreeenWave.png
+    - assets/google logo.png
