@@ -51,11 +51,26 @@ class AuthService {
     return null;
   }
 
-  // ── Reset password ───────────────────────────────────────────
+  // ── Reset password — step 1: email the 6-digit OTP code ───────
   Future<String?> resetPassword({required String email}) async {
     final res = await ApiClient.post(
       '/api/auth/forgot-password',
       {'email': email},
+      auth: false,
+    );
+    if (!res.isSuccess) return res.error;
+    return null;
+  }
+
+  // ── Reset password — step 2: confirm with the emailed code ────
+  Future<String?> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final res = await ApiClient.post(
+      '/api/auth/reset-password',
+      {'email': email, 'code': code, 'new_password': newPassword},
       auth: false,
     );
     if (!res.isSuccess) return res.error;

@@ -21,11 +21,13 @@ class _AuthParentPageState extends State<AuthParentPage>
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController _nameController     = TextEditingController();
-  final TextEditingController _emailController    = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _nameController        = TextEditingController();
+  final TextEditingController _emailController       = TextEditingController();
+  final TextEditingController _passwordController    = TextEditingController();
+  final TextEditingController _otpController         = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
 
-  // 'login' | 'signup' | 'forgot'
+  // 'login' | 'signup' | 'forgot' | 'reset'
   String _currentView    = 'login';
 
   bool   _isLoading       = false;
@@ -56,6 +58,8 @@ class _AuthParentPageState extends State<AuthParentPage>
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _otpController.dispose();
+    _newPasswordController.dispose();
     super.dispose();
   }
 
@@ -152,7 +156,20 @@ class _AuthParentPageState extends State<AuthParentPage>
       error = await _authService.resetPassword(
           email: _emailController.text.trim());
       if (error == null) {
-        _showSnackBar('Password reset link sent!', Colors.blue);
+        _showSnackBar('Code sent! Check your email.', Colors.blue);
+        if (mounted) setState(() => _currentView = 'reset');
+      }
+    } else if (_currentView == 'reset') {
+      error = await _authService.confirmPasswordReset(
+        email:       _emailController.text.trim(),
+        code:        _otpController.text.trim(),
+        newPassword: _newPasswordController.text.trim(),
+      );
+      if (error == null) {
+        _showSnackBar('Password reset! Please log in.', _teal);
+        _otpController.clear();
+        _newPasswordController.clear();
+        if (mounted) setState(() => _currentView = 'login');
       }
     }
 
@@ -187,6 +204,7 @@ class _AuthParentPageState extends State<AuthParentPage>
   Widget _buildMainView() {
     final isLogin  = _currentView == 'login';
     final isSignup = _currentView == 'signup';
+    final isReset  = _currentView == 'reset';
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -254,7 +272,8 @@ class _AuthParentPageState extends State<AuthParentPage>
 
             Text(
               isLogin  ? 'Welcome Back'   :
-              isSignup ? 'Create Account' : 'Reset Password',
+              isSignup ? 'Create Account' :
+              isReset  ? 'Enter Reset Code' : 'Reset Password',
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold,
                   color: _dark),
             ),
@@ -262,7 +281,8 @@ class _AuthParentPageState extends State<AuthParentPage>
             Text(
               isLogin  ? 'Sign in to continue your luxury shopping' :
               isSignup ? 'Join the Savaan luxury experience'        :
-                         'We\'ll send a reset link to your email',
+              isReset  ? 'Enter the code we emailed you and choose a new password' :
+                         'We\'ll email a reset code to your email',
               style: const TextStyle(fontSize: 13, color: _textGrey),
               textAlign: TextAlign.center,
             ),
@@ -279,15 +299,33 @@ class _AuthParentPageState extends State<AuthParentPage>
               const SizedBox(height: 14),
             ],
 
-            _buildInputField(
-              controller: _emailController,
-              hint: 'Email Address',
-              icon: Icons.email_outlined,
-              validator: (val) =>
-                  val == null || !val.contains('@') ? 'Enter a valid email' : null,
-            ),
+            if (!isReset)
+              _buildInputField(
+                controller: _emailController,
+                hint: 'Email Address',
+                icon: Icons.email_outlined,
+                validator: (val) =>
+                    val == null || !val.contains('@') ? 'Enter a valid email' : null,
+              ),
 
-            if (_currentView != 'forgot') ...[
+            if (isReset) ...[
+              _buildInputField(
+                controller: _otpController,
+                hint: '6-Digit Code',
+                icon: Icons.pin_outlined,
+                validator: (val) =>
+                    val == null || val.trim().length != 6 ? 'Enter the 6-digit code' : null,
+              ),
+              const SizedBox(height: 14),
+              _buildPasswordField(
+                controller: _newPasswordController,
+                hint: 'New Password',
+                validator: (val) =>
+                    val == null || val.length < 8 ? 'At least 8 characters' : null,
+              ),
+            ],
+
+            if (isLogin || isSignup) ...[
               const SizedBox(height: 14),
               _buildPasswordField(),
             ],
@@ -307,7 +345,8 @@ class _AuthParentPageState extends State<AuthParentPage>
             _buildGradientButton(
               label: isLogin   ? 'LOGIN'           :
                      isSignup  ? 'REGISTER'        :
-                                 'SEND RESET LINK',
+                     isReset   ? 'RESET PASSWORD'  :
+                                 'SEND RESET CODE',
               onTap: _isLoading ? null : _handleSubmit,
             ),
 
@@ -394,14 +433,19 @@ class _AuthParentPageState extends State<AuthParentPage>
     );
   }
 
-  Widget _buildPasswordField() {
+  Widget _buildPasswordField({
+    TextEditingController? controller,
+    String hint = 'Password',
+    String? Function(String?)? validator,
+  }) {
     return TextFormField(
-      controller: _passwordController,
+      controller: controller ?? _passwordController,
       obscureText: _obscurePassword,
       style: const TextStyle(color: _dark, fontSize: 14),
-      validator: (val) => val == null || val.length < 6 ? 'Min 6 characters' : null,
+      validator: validator ??
+          (val) => val == null || val.length < 6 ? 'Min 6 characters' : null,
       decoration: InputDecoration(
-        hintText: 'Password',
+        hintText: hint,
         hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 14),
         prefixIcon: const Icon(Icons.lock_outline, color: _textGrey, size: 20),
         suffixIcon: GestureDetector(
