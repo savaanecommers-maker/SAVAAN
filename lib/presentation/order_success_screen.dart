@@ -189,16 +189,13 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                     child: Container(
                       width: double.infinity, height: 52,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [_teal, _green]),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(14),
-                        boxShadow: [BoxShadow(
-                          color: _teal.withValues(alpha: 0.3),
-                          blurRadius: 12, offset: const Offset(0, 4),
-                        )],
+                        border: Border.all(color: _border, width: 1.5),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Text('TRACK ORDER',
-                            style: TextStyle(color: Colors.white,
+                            style: TextStyle(color: _ink,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14, letterSpacing: 1)),
                       ),
@@ -212,13 +209,16 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                     child: Container(
                       width: double.infinity, height: 52,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        gradient: const LinearGradient(colors: [_teal, _green]),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _border, width: 1.5),
+                        boxShadow: [BoxShadow(
+                          color: _teal.withValues(alpha: 0.3),
+                          blurRadius: 12, offset: const Offset(0, 4),
+                        )],
                       ),
-                      child: Center(
+                      child: const Center(
                         child: Text('CONTINUE SHOPPING',
-                            style: TextStyle(color: _ink,
+                            style: TextStyle(color: Colors.white,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14, letterSpacing: 1)),
                       ),

@@ -196,7 +196,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildTrackingBar(OrderModel order) {
-    final steps = ['Placed', 'Confirmed', 'Packed', 'Shipped', 'Out for\nDelivery', 'Delivered'];
+    final steps = ['Placed', 'Confirmed', 'Packed', 'Shipped', 'Delivery', 'Delivered'];
     final currentStep = order.status.trackingStep;
 
     return Container(
@@ -231,8 +231,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   const SizedBox(height: 4),
                   Text(steps[i],
                       textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
+                      softWrap: false,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 8,
+                        letterSpacing: -0.2,
                         color: isDone ? _teal : _slate,
                         fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                         height: 1.2,

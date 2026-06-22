@@ -934,11 +934,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   Widget _buildList() {
     // itemExtent eliminates per-item layout passes and enables O(1) scroll offset math.
-    // 110 = 90px image + 10px vertical padding top+bottom + 10px bottom margin.
+    // The card's height is actually driven by its text column, not the 90px
+    // image: brand line + up to 2 name lines + rating row + price row + stock
+    // row, plus 20px container padding and 10px bottom margin, comes to ~145px.
+    // (Previously set to 110 using only the image height, which overflowed
+    // by ~30-35px on every card with a 2-line product name.)
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: _filtered.length,
-      itemExtent: 110,
+      itemExtent: 145,
       itemBuilder: (_, i) => _buildListCard(_filtered[i]),
     );
   }
