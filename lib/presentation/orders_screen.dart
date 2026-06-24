@@ -190,6 +190,33 @@ class _OrdersScreenState extends State<OrdersScreen> {
               order.status != OrderStatus.returned &&
               order.status != OrderStatus.returnRequested)
             _buildTrackingBar(order),
+
+          if (order.awbNumber != null && order.awbNumber!.isNotEmpty)
+            _buildAwbRow(order),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildAwbRow(OrderModel order) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(children: [
+          Icon(Icons.local_shipping_outlined, size: 14, color: _slate),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '${order.courierPartner ?? 'Courier'} · AWB ${order.awbNumber}',
+              style: TextStyle(fontSize: 11, color: _slate, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ]),
       ),
     );

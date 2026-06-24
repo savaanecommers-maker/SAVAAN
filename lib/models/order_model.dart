@@ -16,6 +16,8 @@ class OrderModel {
   final String? paymentId;
   final PaymentStatus paymentStatus;
   final DateTime? createdAt;
+  final String? awbNumber;
+  final String? courierPartner;
 
   // Joined data
   final List<OrderItemModel> items;
@@ -36,6 +38,8 @@ class OrderModel {
     this.paymentId,
     this.paymentStatus = PaymentStatus.pending,
     this.createdAt,
+    this.awbNumber,
+    this.courierPartner,
     this.items = const [],
     this.address,
   });
@@ -73,6 +77,8 @@ class OrderModel {
       createdAt:     json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString())
           : null,
+      awbNumber:      json['awb_number']?.toString(),
+      courierPartner: json['courier_partner']?.toString(),
       items:         itemList,
       address:       addr,
     );
