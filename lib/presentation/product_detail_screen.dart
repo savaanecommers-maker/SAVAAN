@@ -447,6 +447,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         color: _surface,
         child: images.isNotEmpty
             ? CachedNetworkImage(imageUrl: images[_selectedImageIndex],
+                filterQuality: FilterQuality.high,
             fit: BoxFit.contain,
             memCacheWidth: 800,
             placeholder: (_, _) => _imagePlaceholder(),
@@ -478,6 +479,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(9),
                   child: CachedNetworkImage(imageUrl: images[i],
+                      filterQuality: FilterQuality.high,
                       fit: BoxFit.cover,
                       memCacheWidth: 120,
                       placeholder: (_, _) => const SizedBox.shrink(),
@@ -740,6 +742,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       borderRadius: BorderRadius.circular(4),
                       child: variantImg != null
                           ? CachedNetworkImage(
+                              filterQuality: FilterQuality.high,
                               imageUrl: variantImg,
                               width: 28, height: 28,
                               fit: BoxFit.cover,

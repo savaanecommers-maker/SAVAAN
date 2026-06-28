@@ -844,6 +844,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 color: const Color(0xFFF8FAFC),
                 child: product.primaryImage != null
                     ? CachedNetworkImage(imageUrl: product.primaryImage!,
+                        filterQuality: FilterQuality.high,
                     fit: BoxFit.contain,
                     memCacheWidth: 280,
                     placeholder: (_, _) => _imgPlaceholder(140),
@@ -971,6 +972,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               borderRadius: BorderRadius.circular(10),
               child: product.primaryImage != null
                   ? CachedNetworkImage(imageUrl: product.primaryImage!,
+                      filterQuality: FilterQuality.high,
                   width: 90, height: 90, fit: BoxFit.contain,
                   memCacheWidth: 180,
                   placeholder: (_, _) => _imgPlaceholder(90, width: 90),

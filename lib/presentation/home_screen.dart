@@ -619,6 +619,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
         // ── Image fills 100% width, fitted to show full content ──
         banner['image_url'] != null
             ? CachedNetworkImage(
+                filterQuality: FilterQuality.high,
                 imageUrl: ApiClient.fixImageUrl(banner['image_url'].toString()) ?? '',
                 fit: BoxFit.fill,
                 alignment: Alignment.center,
@@ -710,6 +711,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           SizedBox(
             width: 140, height: 190,
             child: CachedNetworkImage(
+                filterQuality: FilterQuality.high,
               imageUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=300&h=400&fit=crop&crop=top',
               fit: BoxFit.cover,
               placeholder: (_, _) => Container(color: const Color(0xFF1E293B)),
@@ -823,6 +825,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   blurRadius: 6, offset: const Offset(0, 2))]),
             child: cat.imageUrl != null && cat.imageUrl!.isNotEmpty
                 ? ClipOval(child: CachedNetworkImage(
+                    filterQuality: FilterQuality.high,
                     imageUrl: ApiClient.fixImageUrl(cat.imageUrl) ?? '',
                     width: 62, height: 62, fit: BoxFit.cover,
                     memCacheWidth: 124,   // 62dp × 2x pixel ratio
@@ -971,6 +974,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               // Background image if configured
               if (hasImage)
                 CachedNetworkImage(
+                    filterQuality: FilterQuality.high,
                     imageUrl: ApiClient.fixImageUrl(imageUrl) ?? '',
                     fit: BoxFit.cover,
                     placeholder: (_, _) => const SizedBox.shrink(),
@@ -1142,6 +1146,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   ? Container(
                       height: 130, width: 155, color: _surface,
                       child: CachedNetworkImage(
+                          filterQuality: FilterQuality.high,
                           imageUrl: p.primaryImage!,
                           fit: BoxFit.contain,
                           memCacheWidth: 310,
@@ -1265,6 +1270,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 border: Border.all(color: _border)),
               child: brand.logoUrl != null && brand.logoUrl!.isNotEmpty
                   ? CachedNetworkImage(
+                      filterQuality: FilterQuality.high,
                       imageUrl: ApiClient.fixImageUrl(brand.logoUrl) ?? '',
                       height: 28, fit: BoxFit.contain,
                       placeholder: (_, _) => const SizedBox.shrink(),
@@ -1364,6 +1370,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               // Background: network image OR decorative circles
               if (hasImage)
                 CachedNetworkImage(
+                    filterQuality: FilterQuality.high,
                   imageUrl: ApiClient.fixImageUrl(imageUrl) ?? '',
                   fit: BoxFit.cover,
                   placeholder: (_, _) => const SizedBox.shrink(),
@@ -1555,6 +1562,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             // Background: network image OR gradient
             if (col.imageUrl != null && col.imageUrl!.isNotEmpty)
               CachedNetworkImage(
+                  filterQuality: FilterQuality.high,
                 imageUrl: ApiClient.fixImageUrl(col.imageUrl) ?? '',
                 fit: BoxFit.cover,
                 placeholder: (_, _) => const SizedBox.shrink(),
